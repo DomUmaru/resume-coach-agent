@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: resume-coach-agent
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/resume_coach}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  jackson:
+    time-zone: Asia/Shanghai
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.deepseek.com}
+      chat:
+        enabled: ${APP_AI_ENABLED:false}
+        options:
+          model: ${OPENAI_MODEL:deepseek-chat}
+          temperature: ${OPENAI_TEMPERATURE:0.3}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  ai:
+    enabled: ${APP_AI_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
