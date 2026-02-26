@@ -1,6 +1,9 @@
 package com.example.resumecoach.ai.service;
 
+import com.example.resumecoach.agent.model.ToolSelectionDecision;
 import com.example.resumecoach.agent.tool.ToolNames;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,10 +20,13 @@ public class LlmService {
 
     private final ChatClient chatClient;
     private final boolean enabled;
+    private final ObjectMapper objectMapper;
 
     public LlmService(ObjectProvider<ChatClient.Builder> builderProvider,
+                      ObjectMapper objectMapper,
                       @Value("${app.ai.enabled:false}") boolean enabled) {
         this.enabled = enabled;
+        this.objectMapper = objectMapper;
         ChatClient.Builder builder = builderProvider.getIfAvailable();
         this.chatClient = (enabled && builder != null) ? builder.build() : null;
     }
@@ -67,13 +73,22 @@ public class LlmService {
         return enabled && chatClient != null;
     }
 
-    public String chooseTool(String intent, String userMessage, boolean shouldRetrieve) {
-        String ruleFallback = ruleBasedTool(intent);
+    public ToolSelectionDecision chooseTool(String intent, String userMessage, boolean shouldRetrieve) {
+        String fallbackTool = ruleBasedTool(intent);
+        ToolSelectionDecision fallback = new ToolSelectionDecision(fallbackTool, 0.6d, "rule-fallback");
         if (!isAvailable()) {
-            return ruleFallback;
+            return fallback;
         }
         String prompt = """
-                你是一个工具路由器。请在以下工具中选择一个最合适的工具名，并且只输出工具名：
+                你是一个工具路由器。请在以下工具中选择一个最合适的工具名，并严格输出 JSON（不要输出其他文字）。
+                输出 schema:
+                {
+                  "toolName": "retrieve_resume_context_tool|star_rewrite_tool|resume_qa_tool|none",
+                  "confidence": 0.0-1.0,
+                  "reason": "一句中文理由"
+                }
+
+                可选工具：
                 1) %s
                 2) %s
                 3) %s
@@ -93,8 +108,8 @@ public class LlmService {
                 ToolNames.STAR_REWRITE, ToolNames.RESUME_QA, ToolNames.RETRIEVE, ToolNames.NONE,
                 intent, shouldRetrieve, userMessage
         );
-        String raw = callOrFallback(prompt, ruleFallback);
-        return normalizeToolName(raw, ruleFallback);
+        String raw = callOrFallback(prompt, "{\"toolName\":\"" + fallbackTool + "\",\"confidence\":0.60,\"reason\":\"fallback\"}");
+        return parseAndValidateDecision(raw, fallback);
     }
 
     private String callOrFallback(String prompt, String fallback) {
@@ -116,23 +131,31 @@ public class LlmService {
         return ToolNames.NONE;
     }
 
-    private String normalizeToolName(String raw, String fallback) {
+    private ToolSelectionDecision parseAndValidateDecision(String raw, ToolSelectionDecision fallback) {
         if (raw == null || raw.isBlank()) {
             return fallback;
         }
+        try {
+            JsonNode root = objectMapper.readTree(raw);
+            String tool = normalizeToolName(root.path("toolName").asText(), fallback.getToolName());
+            double confidence = root.path("confidence").asDouble(fallback.getConfidence());
+            String reason = root.path("reason").asText("model-selection");
+            if (confidence < 0.0d || confidence > 1.0d) {
+                confidence = fallback.getConfidence();
+            }
+            return new ToolSelectionDecision(tool, confidence, reason);
+        } catch (Exception ignored) {
+            String tool = normalizeToolName(raw, fallback.getToolName());
+            return new ToolSelectionDecision(tool, fallback.getConfidence(), "parse-fallback");
+        }
+    }
+
+    private String normalizeToolName(String raw, String fallback) {
         String normalized = raw.trim().toLowerCase();
-        if (normalized.contains(ToolNames.STAR_REWRITE)) {
-            return ToolNames.STAR_REWRITE;
-        }
-        if (normalized.contains(ToolNames.RESUME_QA)) {
-            return ToolNames.RESUME_QA;
-        }
-        if (normalized.contains(ToolNames.RETRIEVE)) {
-            return ToolNames.RETRIEVE;
-        }
-        if (normalized.contains(ToolNames.NONE)) {
-            return ToolNames.NONE;
-        }
+        if (normalized.contains(ToolNames.STAR_REWRITE)) return ToolNames.STAR_REWRITE;
+        if (normalized.contains(ToolNames.RESUME_QA)) return ToolNames.RESUME_QA;
+        if (normalized.contains(ToolNames.RETRIEVE)) return ToolNames.RETRIEVE;
+        if (normalized.contains(ToolNames.NONE)) return ToolNames.NONE;
         return fallback;
     }
 }

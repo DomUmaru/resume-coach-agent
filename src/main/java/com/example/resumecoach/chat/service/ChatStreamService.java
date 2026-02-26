@@ -48,6 +48,8 @@ public class ChatStreamService {
                 toolPayload.put("intent", result.getDecision().getIntent());
                 toolPayload.put("shouldRetrieve", result.getDecision().isShouldRetrieve());
                 toolPayload.put("selectedTool", result.getSelectedTool());
+                toolPayload.put("selectedToolConfidence", result.getSelectedToolConfidence());
+                toolPayload.put("selectedToolReason", result.getSelectedToolReason());
                 sendEvent(emitter, "tool_call", toolPayload);
 
                 // 中文说明：按空格切分 token 用于演示流式输出，后续替换为真实模型 token 流。
