@@ -39,6 +39,10 @@ app:
       max-top-k: ${RAG_RETRIEVAL_MAX_TOPK:8}
       default-top-k: ${RAG_RETRIEVAL_DEFAULT_TOPK:4}
       vector-min-score: ${RAG_RETRIEVAL_VECTOR_MIN_SCORE:0.25}
+    guardrail:
+      enabled: ${RAG_GUARDRAIL_ENABLED:true}
+      min-evidence-overlap: ${RAG_GUARDRAIL_MIN_EVIDENCE_OVERLAP:0.18}
+      no-evidence-refuse: ${RAG_GUARDRAIL_NO_EVIDENCE_REFUSE:true}
 
 management:
   endpoints:

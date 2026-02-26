@@ -1,6 +1,7 @@
 package com.example.resumecoach;
 
 import com.example.resumecoach.rag.retrieval.RetrievalTuningProperties;
+import com.example.resumecoach.rag.guardrail.GuardrailProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -12,7 +13,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * 策略：当前以最小可运行骨架为目标，后续按模块逐步补齐能力。
  */
 @SpringBootApplication
-@EnableConfigurationProperties({RetrievalTuningProperties.class})
+@EnableConfigurationProperties({RetrievalTuningProperties.class, GuardrailProperties.class})
 public class ResumeCoachApplication {
 
     public static void main(String[] args) {
