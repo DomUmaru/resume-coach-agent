@@ -76,6 +76,7 @@
 13. 已接入 Guardrail：无证据拒答/追问策略 + Citation 一致性校验。
 14. 已接入模型驱动的自动 Tool 选择（含规则兜底），SSE 可展示 selectedTool。
 15. 自动 Tool 选择已升级为 JSON 决策输出（toolName/confidence/reason）并完成字段校验。
+16. 已新增离线评测脚手架（Hit@K、MRR、Citation Precision）与黄金集样例接口。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -116,3 +117,4 @@
 6. 2026-02-22：完成防幻觉链路接入（Citation Verifier + No-Evidence Policy），主链路具备安全回复能力。
 7. 2026-02-22：完成自动工具选择链路（LlmService chooseTool），编排器支持动态路由与追踪。
 8. 2026-02-22：完成工具选择结构化升级（JSON schema 风格输出），SSE 新增置信度与理由追踪字段。
+9. 2026-02-22：完成离线评测模块初版（/api/eval/offline + golden-set-sample），支持检索质量基础量化。

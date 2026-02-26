@@ -1,0 +1,21 @@
+[
+  {
+    "caseId": "case_001",
+    "query": "请总结我的项目经历亮点",
+    "relevantSections": ["PROJECT", "WORK"],
+    "relevantKeywords": ["项目", "优化", "效果", "提升"]
+  },
+  {
+    "caseId": "case_002",
+    "query": "我有哪些核心技能",
+    "relevantSections": ["SKILL", "SUMMARY"],
+    "relevantKeywords": ["技能", "技术栈", "熟悉", "掌握"]
+  },
+  {
+    "caseId": "case_003",
+    "query": "请根据简历生成模拟面试回答",
+    "relevantSections": ["PROJECT", "WORK"],
+    "relevantKeywords": ["负责", "行动", "结果", "业务"]
+  }
+]
+
