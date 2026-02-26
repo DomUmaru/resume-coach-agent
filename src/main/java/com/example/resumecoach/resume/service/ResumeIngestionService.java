@@ -3,6 +3,7 @@ package com.example.resumecoach.resume.service;
 import com.example.resumecoach.common.api.ErrorCode;
 import com.example.resumecoach.common.exception.BizException;
 import com.example.resumecoach.common.util.IdGenerator;
+import com.example.resumecoach.rag.embedding.EmbeddingService;
 import com.example.resumecoach.resume.model.dto.ParsedPage;
 import com.example.resumecoach.resume.model.dto.UploadResumeResponse;
 import com.example.resumecoach.resume.model.entity.ResumeChunkEntity;
@@ -29,15 +30,18 @@ public class ResumeIngestionService {
     private final ResumeChunkRepository resumeChunkRepository;
     private final PdfParseService pdfParseService;
     private final ResumeChunkingService resumeChunkingService;
+    private final EmbeddingService embeddingService;
 
     public ResumeIngestionService(ResumeDocumentRepository resumeDocumentRepository,
                                   ResumeChunkRepository resumeChunkRepository,
                                   PdfParseService pdfParseService,
-                                  ResumeChunkingService resumeChunkingService) {
+                                  ResumeChunkingService resumeChunkingService,
+                                  EmbeddingService embeddingService) {
         this.resumeDocumentRepository = resumeDocumentRepository;
         this.resumeChunkRepository = resumeChunkRepository;
         this.pdfParseService = pdfParseService;
         this.resumeChunkingService = resumeChunkingService;
+        this.embeddingService = embeddingService;
     }
 
     @Transactional
@@ -56,6 +60,11 @@ public class ResumeIngestionService {
         try {
             List<ParsedPage> pages = pdfParseService.parseByPage(file);
             List<ResumeChunkEntity> chunks = resumeChunkingService.buildChunks(docId, userId, pages);
+            // 中文说明：上传阶段预计算分块向量，减少检索阶段的实时计算开销。
+            for (ResumeChunkEntity chunk : chunks) {
+                float[] vector = embeddingService.embed(chunk.getContent());
+                chunk.setContentEmbedding(embeddingService.serialize(vector));
+            }
             resumeChunkRepository.deleteByDocId(docId);
             resumeChunkRepository.saveAll(chunks);
             document.setStatus(DocumentStatus.COMPLETED);
@@ -89,4 +98,3 @@ public class ResumeIngestionService {
         return file.getOriginalFilename() == null ? "resume.pdf" : file.getOriginalFilename();
     }
 }
-

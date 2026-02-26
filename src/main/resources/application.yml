@@ -31,6 +31,9 @@ server:
 app:
   ai:
     enabled: ${APP_AI_ENABLED:false}
+  rag:
+    embedding:
+      fallback-dim: ${RAG_EMBEDDING_FALLBACK_DIM:128}
 
 management:
   endpoints:

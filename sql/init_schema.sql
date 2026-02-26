@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS resume_chunk (
     chunk_type VARCHAR(32) NOT NULL,
     source_page INT,
     content TEXT NOT NULL,
+    content_embedding TEXT,
     created_at TIMESTAMP NOT NULL
 );
 

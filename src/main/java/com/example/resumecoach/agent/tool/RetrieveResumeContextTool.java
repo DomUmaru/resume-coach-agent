@@ -2,6 +2,7 @@ package com.example.resumecoach.agent.tool;
 
 import com.example.resumecoach.agent.model.ToolCallResult;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
+import com.example.resumecoach.rag.embedding.EmbeddingService;
 import com.example.resumecoach.rag.context.Citation;
 import com.example.resumecoach.rag.query.MultiQueryService;
 import com.example.resumecoach.rag.query.QueryRewriteService;
@@ -30,15 +31,18 @@ public class RetrieveResumeContextTool {
     private final QueryRewriteService queryRewriteService;
     private final MultiQueryService multiQueryService;
     private final RerankService rerankService;
+    private final EmbeddingService embeddingService;
 
     public RetrieveResumeContextTool(ResumeChunkRepository resumeChunkRepository,
                                      QueryRewriteService queryRewriteService,
                                      MultiQueryService multiQueryService,
-                                     RerankService rerankService) {
+                                     RerankService rerankService,
+                                     EmbeddingService embeddingService) {
         this.resumeChunkRepository = resumeChunkRepository;
         this.queryRewriteService = queryRewriteService;
         this.multiQueryService = multiQueryService;
         this.rerankService = rerankService;
+        this.embeddingService = embeddingService;
     }
 
     public ToolCallResult run(String query, String docId, ChatStreamRequest.Options options) {
@@ -50,6 +54,7 @@ public class RetrieveResumeContextTool {
         boolean enableRewrite = options == null || Boolean.TRUE.equals(options.getEnableRewrite());
         boolean enableMultiQuery = options == null || Boolean.TRUE.equals(options.getEnableMultiQuery());
         boolean enableRerank = options == null || Boolean.TRUE.equals(options.getEnableRerank());
+        boolean enableVector = options == null || Boolean.TRUE.equals(options.getEnableVector());
 
         String rewritten = enableRewrite ? queryRewriteService.rewrite(query) : query;
         List<String> queries = enableMultiQuery
@@ -73,8 +78,10 @@ public class RetrieveResumeContextTool {
                     .toList();
 
             List<ResumeChunkEntity> ftsTop = resumeChunkRepository.searchByFts(docId, q, 6);
+            List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(allChunks, q, 6) : List.of();
             addRrf(rrfScore, candidates, keywordTop);
             addRrf(rrfScore, candidates, ftsTop);
+            addRrf(rrfScore, candidates, vectorTop);
         }
 
         List<ResumeChunkEntity> fused = rrfScore.entrySet().stream()
@@ -104,6 +111,16 @@ public class RetrieveResumeContextTool {
         return new ToolCallResult("retrieve_resume_context_tool", merged, citations);
     }
 
+    private List<ResumeChunkEntity> searchByVector(List<ResumeChunkEntity> chunks, String query, int topN) {
+        float[] queryVector = embeddingService.embed(query);
+        return chunks.stream()
+                .sorted((a, b) -> Double.compare(
+                        vectorScore(b, queryVector),
+                        vectorScore(a, queryVector)))
+                .limit(topN)
+                .toList();
+    }
+
     private void addRrf(Map<String, Double> scoreMap,
                         Map<String, ResumeChunkEntity> entityMap,
                         List<ResumeChunkEntity> ranking) {
@@ -124,6 +141,11 @@ public class RetrieveResumeContextTool {
         return (double) hit / (double) queryTokens.size();
     }
 
+    private double vectorScore(ResumeChunkEntity chunk, float[] queryVector) {
+        float[] chunkVector = embeddingService.deserialize(chunk.getContentEmbedding());
+        return embeddingService.cosine(queryVector, chunkVector);
+    }
+
     private Set<String> tokenize(String text) {
         if (text == null || text.isBlank()) {
             return Set.of();
@@ -134,4 +156,3 @@ public class RetrieveResumeContextTool {
                 .collect(Collectors.toCollection(HashSet::new));
     }
 }
-

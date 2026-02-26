@@ -30,5 +30,6 @@ public class ChatStreamRequest {
         private Boolean enableRewrite = Boolean.TRUE;
         private Boolean enableMultiQuery = Boolean.TRUE;
         private Boolean enableRerank = Boolean.TRUE;
+        private Boolean enableVector = Boolean.TRUE;
     }
 }

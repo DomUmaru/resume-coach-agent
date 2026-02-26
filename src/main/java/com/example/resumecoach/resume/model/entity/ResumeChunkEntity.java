@@ -52,6 +52,9 @@ public class ResumeChunkEntity {
     @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
 
+    @Column(name = "content_embedding", columnDefinition = "text")
+    private String contentEmbedding;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -60,4 +63,3 @@ public class ResumeChunkEntity {
         this.createdAt = LocalDateTime.now();
     }
 }
-
