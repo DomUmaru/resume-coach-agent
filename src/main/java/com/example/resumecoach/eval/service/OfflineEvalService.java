@@ -4,8 +4,12 @@ import com.example.resumecoach.agent.model.ToolCallResult;
 import com.example.resumecoach.agent.tool.RetrieveResumeContextTool;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
 import com.example.resumecoach.eval.model.EvalCaseResult;
+import com.example.resumecoach.eval.model.EvalReportItem;
 import com.example.resumecoach.eval.model.EvalSummaryResponse;
 import com.example.resumecoach.eval.model.GoldenCase;
+import com.example.resumecoach.eval.model.entity.EvalReportEntity;
+import com.example.resumecoach.eval.repository.EvalReportRepository;
+import com.example.resumecoach.common.util.IdGenerator;
 import com.example.resumecoach.rag.context.Citation;
 import com.example.resumecoach.resume.model.entity.ResumeChunkEntity;
 import com.example.resumecoach.resume.repository.ResumeChunkRepository;
@@ -33,13 +37,16 @@ public class OfflineEvalService {
     private final RetrieveResumeContextTool retrieveResumeContextTool;
     private final ResumeChunkRepository resumeChunkRepository;
     private final ObjectMapper objectMapper;
+    private final EvalReportRepository evalReportRepository;
 
     public OfflineEvalService(RetrieveResumeContextTool retrieveResumeContextTool,
                               ResumeChunkRepository resumeChunkRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              EvalReportRepository evalReportRepository) {
         this.retrieveResumeContextTool = retrieveResumeContextTool;
         this.resumeChunkRepository = resumeChunkRepository;
         this.objectMapper = objectMapper;
+        this.evalReportRepository = evalReportRepository;
     }
 
     public EvalSummaryResponse evaluate(String docId) {
@@ -52,7 +59,22 @@ public class OfflineEvalService {
         summary.setAvgHitAtK(avg(results.stream().map(EvalCaseResult::getHitAtK).toList()));
         summary.setAvgMRR(avg(results.stream().map(EvalCaseResult::getReciprocalRank).toList()));
         summary.setAvgCitationPrecision(avg(results.stream().map(EvalCaseResult::getCitationPrecision).toList()));
+        saveReport(docId, summary);
         return summary;
+    }
+
+    public List<EvalReportItem> latestReports(String docId) {
+        return evalReportRepository.findTop20ByDocIdOrderByCreatedAtDesc(docId).stream()
+                .map(item -> new EvalReportItem(
+                        item.getId(),
+                        item.getDocId(),
+                        item.getTotalCases(),
+                        item.getAvgHitAtK(),
+                        item.getAvgMrr(),
+                        item.getAvgCitationPrecision(),
+                        item.getCreatedAt() == null ? "" : item.getCreatedAt().toString()
+                ))
+                .toList();
     }
 
     private EvalCaseResult evaluateCase(String docId, GoldenCase goldenCase) {
@@ -128,5 +150,20 @@ public class OfflineEvalService {
         double sum = values.stream().mapToDouble(v -> v == null ? 0.0d : v).sum();
         return sum / (double) values.size();
     }
-}
 
+    private void saveReport(String docId, EvalSummaryResponse summary) {
+        try {
+            EvalReportEntity entity = new EvalReportEntity();
+            entity.setId(IdGenerator.generate("eval"));
+            entity.setDocId(docId);
+            entity.setTotalCases(summary.getTotalCases());
+            entity.setAvgHitAtK(summary.getAvgHitAtK());
+            entity.setAvgMrr(summary.getAvgMRR());
+            entity.setAvgCitationPrecision(summary.getAvgCitationPrecision());
+            entity.setReportJson(objectMapper.writeValueAsString(summary));
+            evalReportRepository.save(entity);
+        } catch (Exception ignored) {
+            // 中文说明：评测落库失败不影响本次评测结果返回。
+        }
+    }
+}

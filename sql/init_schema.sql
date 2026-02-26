@@ -54,3 +54,16 @@ CREATE TABLE IF NOT EXISTS chat_message (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id_time ON chat_message(session_id, created_at);
+
+CREATE TABLE IF NOT EXISTS eval_report (
+    id VARCHAR(64) PRIMARY KEY,
+    doc_id VARCHAR(64) NOT NULL,
+    total_cases INT NOT NULL,
+    avg_hit_at_k DOUBLE PRECISION NOT NULL,
+    avg_mrr DOUBLE PRECISION NOT NULL,
+    avg_citation_precision DOUBLE PRECISION NOT NULL,
+    report_json TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_eval_report_doc_id_time ON eval_report(doc_id, created_at DESC);

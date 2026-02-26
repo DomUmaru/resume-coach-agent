@@ -77,6 +77,7 @@
 14. 已接入模型驱动的自动 Tool 选择（含规则兜底），SSE 可展示 selectedTool。
 15. 自动 Tool 选择已升级为 JSON 决策输出（toolName/confidence/reason）并完成字段校验。
 16. 已新增离线评测脚手架（Hit@K、MRR、Citation Precision）与黄金集样例接口。
+17. 离线评测结果已支持落库（eval_report）与历史报告查询（最近20条）。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -118,3 +119,4 @@
 7. 2026-02-22：完成自动工具选择链路（LlmService chooseTool），编排器支持动态路由与追踪。
 8. 2026-02-22：完成工具选择结构化升级（JSON schema 风格输出），SSE 新增置信度与理由追踪字段。
 9. 2026-02-22：完成离线评测模块初版（/api/eval/offline + golden-set-sample），支持检索质量基础量化。
+10. 2026-02-22：完成评测报告持久化与回归查询接口（/api/eval/reports/{docId}）。

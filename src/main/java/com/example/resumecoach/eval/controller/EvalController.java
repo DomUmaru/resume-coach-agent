@@ -2,11 +2,15 @@ package com.example.resumecoach.eval.controller;
 
 import com.example.resumecoach.common.api.ApiResponse;
 import com.example.resumecoach.common.trace.TraceContext;
+import com.example.resumecoach.eval.model.EvalReportItem;
 import com.example.resumecoach.eval.model.EvalRunRequest;
 import com.example.resumecoach.eval.model.EvalSummaryResponse;
 import com.example.resumecoach.eval.service.OfflineEvalService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,5 +35,9 @@ public class EvalController {
         EvalSummaryResponse summary = offlineEvalService.evaluate(request.getDocId());
         return ApiResponse.ok(summary, TraceContext.getTraceId());
     }
-}
 
+    @GetMapping("/reports/{docId}")
+    public ApiResponse<java.util.List<EvalReportItem>> latestReports(@PathVariable("docId") @NotBlank String docId) {
+        return ApiResponse.ok(offlineEvalService.latestReports(docId), TraceContext.getTraceId());
+    }
+}
