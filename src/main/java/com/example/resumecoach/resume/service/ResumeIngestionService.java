@@ -64,6 +64,7 @@ public class ResumeIngestionService {
             for (ResumeChunkEntity chunk : chunks) {
                 float[] vector = embeddingService.embed(chunk.getContent());
                 chunk.setContentEmbedding(embeddingService.serialize(vector));
+                chunk.setEmbeddingDim(embeddingService.dimension(vector));
             }
             resumeChunkRepository.deleteByDocId(docId);
             resumeChunkRepository.saveAll(chunks);

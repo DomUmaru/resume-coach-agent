@@ -28,4 +28,4 @@ docker compose up -d
 说明：
 1. `-v` 会删除容器卷数据。
 2. 首次启动会自动执行 `sql/init_schema.sql`。
-
+3. 初始化脚本会自动启用 `pgvector` 扩展（`CREATE EXTENSION vector`）。

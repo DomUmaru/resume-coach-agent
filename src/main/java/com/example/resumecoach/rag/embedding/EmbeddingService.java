@@ -53,6 +53,10 @@ public class EmbeddingService {
         return sb.toString();
     }
 
+    public int dimension(float[] vector) {
+        return vector == null ? 0 : vector.length;
+    }
+
     public float[] deserialize(String vectorText) {
         if (vectorText == null || vectorText.isBlank() || "[]".equals(vectorText.trim())) {
             return new float[0];
@@ -123,4 +127,3 @@ public class EmbeddingService {
         return vector;
     }
 }
-

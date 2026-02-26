@@ -113,12 +113,21 @@ public class RetrieveResumeContextTool {
 
     private List<ResumeChunkEntity> searchByVector(List<ResumeChunkEntity> chunks, String query, int topN) {
         float[] queryVector = embeddingService.embed(query);
-        return chunks.stream()
-                .sorted((a, b) -> Double.compare(
-                        vectorScore(b, queryVector),
-                        vectorScore(a, queryVector)))
-                .limit(topN)
-                .toList();
+        String vectorLiteral = embeddingService.serialize(queryVector);
+        int dim = embeddingService.dimension(queryVector);
+        String docId = chunks.isEmpty() ? "" : chunks.get(0).getDocId();
+
+        try {
+            return resumeChunkRepository.searchByVectorDistance(docId, vectorLiteral, dim, topN);
+        } catch (Exception ignored) {
+            // 中文说明：数据库未安装 pgvector 或 SQL 执行异常时，降级为应用内余弦排序。
+            return chunks.stream()
+                    .sorted((a, b) -> Double.compare(
+                            vectorScore(b, queryVector),
+                            vectorScore(a, queryVector)))
+                    .limit(topN)
+                    .toList();
+        }
     }
 
     private void addRrf(Map<String, Double> scoreMap,

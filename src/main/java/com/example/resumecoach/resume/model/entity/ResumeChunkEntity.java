@@ -55,6 +55,9 @@ public class ResumeChunkEntity {
     @Column(name = "content_embedding", columnDefinition = "text")
     private String contentEmbedding;
 
+    @Column(name = "embedding_dim")
+    private Integer embeddingDim;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

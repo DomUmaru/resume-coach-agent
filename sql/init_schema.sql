@@ -1,4 +1,5 @@
 -- 中文说明：Resume Coach Agent 初版数据库结构（PostgreSQL）
+CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS resume_document (
     id VARCHAR(64) PRIMARY KEY,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS resume_chunk (
     source_page INT,
     content TEXT NOT NULL,
     content_embedding TEXT,
+    embedding_dim INT,
     created_at TIMESTAMP NOT NULL
 );
 
