@@ -1,5 +1,6 @@
 package com.example.resumecoach.ai.service;
 
+import com.example.resumecoach.agent.tool.ToolNames;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,6 +67,36 @@ public class LlmService {
         return enabled && chatClient != null;
     }
 
+    public String chooseTool(String intent, String userMessage, boolean shouldRetrieve) {
+        String ruleFallback = ruleBasedTool(intent);
+        if (!isAvailable()) {
+            return ruleFallback;
+        }
+        String prompt = """
+                你是一个工具路由器。请在以下工具中选择一个最合适的工具名，并且只输出工具名：
+                1) %s
+                2) %s
+                3) %s
+                4) %s
+
+                规则：
+                - 如果是 STAR 改写，优先选 %s
+                - 如果是简历问答或模拟面试，优先选 %s
+                - 如果用户只是要求“展示证据/上下文”，选 %s
+                - 无需执行工具时选 %s
+
+                已识别意图：%s
+                是否需要检索：%s
+                用户输入：%s
+                """.formatted(
+                ToolNames.RETRIEVE, ToolNames.STAR_REWRITE, ToolNames.RESUME_QA, ToolNames.NONE,
+                ToolNames.STAR_REWRITE, ToolNames.RESUME_QA, ToolNames.RETRIEVE, ToolNames.NONE,
+                intent, shouldRetrieve, userMessage
+        );
+        String raw = callOrFallback(prompt, ruleFallback);
+        return normalizeToolName(raw, ruleFallback);
+    }
+
     private String callOrFallback(String prompt, String fallback) {
         try {
             String content = chatClient.prompt().user(prompt).call().content();
@@ -74,5 +105,34 @@ public class LlmService {
             return fallback;
         }
     }
-}
 
+    private String ruleBasedTool(String intent) {
+        if ("REWRITE".equals(intent)) {
+            return ToolNames.STAR_REWRITE;
+        }
+        if ("QA".equals(intent) || "MOCK_INTERVIEW".equals(intent)) {
+            return ToolNames.RESUME_QA;
+        }
+        return ToolNames.NONE;
+    }
+
+    private String normalizeToolName(String raw, String fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        String normalized = raw.trim().toLowerCase();
+        if (normalized.contains(ToolNames.STAR_REWRITE)) {
+            return ToolNames.STAR_REWRITE;
+        }
+        if (normalized.contains(ToolNames.RESUME_QA)) {
+            return ToolNames.RESUME_QA;
+        }
+        if (normalized.contains(ToolNames.RETRIEVE)) {
+            return ToolNames.RETRIEVE;
+        }
+        if (normalized.contains(ToolNames.NONE)) {
+            return ToolNames.NONE;
+        }
+        return fallback;
+    }
+}

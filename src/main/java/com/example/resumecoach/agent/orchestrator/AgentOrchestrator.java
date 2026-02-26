@@ -5,9 +5,11 @@ import com.example.resumecoach.agent.model.ToolCallResult;
 import com.example.resumecoach.agent.skill.AnswerSkill;
 import com.example.resumecoach.agent.skill.IntentSkill;
 import com.example.resumecoach.agent.skill.RetrievalSkill;
+import com.example.resumecoach.agent.tool.ToolNames;
 import com.example.resumecoach.agent.tool.ResumeQaTool;
 import com.example.resumecoach.agent.tool.RetrieveResumeContextTool;
 import com.example.resumecoach.agent.tool.StarRewriteTool;
+import com.example.resumecoach.ai.service.LlmService;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
 import com.example.resumecoach.rag.context.Citation;
 import com.example.resumecoach.rag.guardrail.CitationVerifierService;
@@ -34,6 +36,7 @@ public class AgentOrchestrator {
     private final ResumeQaTool resumeQaTool;
     private final CitationVerifierService citationVerifierService;
     private final NoEvidencePolicyService noEvidencePolicyService;
+    private final LlmService llmService;
 
     public AgentOrchestrator(IntentSkill intentSkill,
                              RetrievalSkill retrievalSkill,
@@ -42,7 +45,8 @@ public class AgentOrchestrator {
                              StarRewriteTool starRewriteTool,
                              ResumeQaTool resumeQaTool,
                              CitationVerifierService citationVerifierService,
-                             NoEvidencePolicyService noEvidencePolicyService) {
+                             NoEvidencePolicyService noEvidencePolicyService,
+                             LlmService llmService) {
         this.intentSkill = intentSkill;
         this.retrievalSkill = retrievalSkill;
         this.answerSkill = answerSkill;
@@ -51,6 +55,7 @@ public class AgentOrchestrator {
         this.resumeQaTool = resumeQaTool;
         this.citationVerifierService = citationVerifierService;
         this.noEvidencePolicyService = noEvidencePolicyService;
+        this.llmService = llmService;
     }
 
     public AgentResult handle(ChatStreamRequest request) {
@@ -61,34 +66,49 @@ public class AgentOrchestrator {
         List<Citation> mergedCitations = new ArrayList<>();
         String retrievalEvidence = "";
         String toolContent = "";
+        String selectedTool = ToolNames.NONE;
 
         if (decision.isShouldRetrieve()) {
             ToolCallResult retrieval = retrieveResumeContextTool.run(request.getMessage(), request.getDocId(), request.getOptions());
             retrievalEvidence = retrieval.getContent();
             mergedCitations.addAll(retrieval.getCitations());
             if (retrievalEvidence == null || retrievalEvidence.isBlank() || retrieval.getCitations().isEmpty()) {
-                return new AgentResult(decision, noEvidencePolicyService.noEvidenceReply(intent), List.of());
+                return new AgentResult(decision, noEvidencePolicyService.noEvidenceReply(intent), List.of(), ToolNames.RETRIEVE);
             }
         }
 
+        selectedTool = llmService.chooseTool(intent, request.getMessage(), decision.isShouldRetrieve());
+
         // 中文说明：Skill 负责路由决策，Tool 只负责执行对应任务。
-        if ("REWRITE".equals(intent)) {
+        if (ToolNames.STAR_REWRITE.equals(selectedTool)) {
             ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
             toolContent = rewrite.getContent();
             mergedCitations.addAll(rewrite.getCitations());
+        } else if (ToolNames.RESUME_QA.equals(selectedTool)) {
+            ToolCallResult qa = resumeQaTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
+            toolContent = qa.getContent();
+            mergedCitations.addAll(qa.getCitations());
+        } else if (ToolNames.RETRIEVE.equals(selectedTool)) {
+            toolContent = retrievalEvidence;
+        } else if ("REWRITE".equals(intent)) {
+            ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
+            toolContent = rewrite.getContent();
+            mergedCitations.addAll(rewrite.getCitations());
+            selectedTool = ToolNames.STAR_REWRITE;
         } else if ("QA".equals(intent) || "MOCK_INTERVIEW".equals(intent)) {
             ToolCallResult qa = resumeQaTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
             toolContent = qa.getContent();
             mergedCitations.addAll(qa.getCitations());
+            selectedTool = ToolNames.RESUME_QA;
         }
 
         String finalAnswer = answerSkill.composeFinalAnswer(intent, toolContent);
         CitationVerifierService.VerificationResult result =
                 citationVerifierService.verify(finalAnswer, retrievalEvidence, mergedCitations);
         if (!result.pass() && decision.isShouldRetrieve()) {
-            return new AgentResult(decision, noEvidencePolicyService.weakCitationReply(result.overlap()), mergedCitations);
+            return new AgentResult(decision, noEvidencePolicyService.weakCitationReply(result.overlap()), mergedCitations, selectedTool);
         }
-        return new AgentResult(decision, finalAnswer, mergedCitations);
+        return new AgentResult(decision, finalAnswer, mergedCitations, selectedTool);
     }
 
     /**
@@ -98,11 +118,13 @@ public class AgentOrchestrator {
         private final SkillDecision decision;
         private final String answer;
         private final List<Citation> citations;
+        private final String selectedTool;
 
-        public AgentResult(SkillDecision decision, String answer, List<Citation> citations) {
+        public AgentResult(SkillDecision decision, String answer, List<Citation> citations, String selectedTool) {
             this.decision = decision;
             this.answer = answer;
             this.citations = citations;
+            this.selectedTool = selectedTool;
         }
 
         public SkillDecision getDecision() {
@@ -116,6 +138,9 @@ public class AgentOrchestrator {
         public List<Citation> getCitations() {
             return citations;
         }
+
+        public String getSelectedTool() {
+            return selectedTool;
+        }
     }
 }
-
