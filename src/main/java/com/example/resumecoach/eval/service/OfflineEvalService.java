@@ -3,7 +3,10 @@ package com.example.resumecoach.eval.service;
 import com.example.resumecoach.agent.model.ToolCallResult;
 import com.example.resumecoach.agent.tool.RetrieveResumeContextTool;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
+import com.example.resumecoach.common.api.ErrorCode;
+import com.example.resumecoach.common.exception.BizException;
 import com.example.resumecoach.eval.model.EvalCaseResult;
+import com.example.resumecoach.eval.model.EvalCompareResponse;
 import com.example.resumecoach.eval.model.EvalReportItem;
 import com.example.resumecoach.eval.model.EvalSummaryResponse;
 import com.example.resumecoach.eval.model.GoldenCase;
@@ -23,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -68,17 +72,30 @@ public class OfflineEvalService {
 
     public List<EvalReportItem> latestReports(String docId) {
         return evalReportRepository.findTop20ByDocIdOrderByCreatedAtDesc(docId).stream()
-                .map(item -> new EvalReportItem(
-                        item.getId(),
-                        item.getDocId(),
-                        item.getStrategyVersion(),
-                        item.getTotalCases(),
-                        item.getAvgHitAtK(),
-                        item.getAvgMrr(),
-                        item.getAvgCitationPrecision(),
-                        item.getCreatedAt() == null ? "" : item.getCreatedAt().toString()
-                ))
+                .map(this::toReportItem)
                 .toList();
+    }
+
+    public EvalCompareResponse compare(String reportIdA, String reportIdB) {
+        EvalReportEntity a = evalReportRepository.findById(reportIdA)
+                .orElseThrow(() -> new BizException(ErrorCode.BAD_REQUEST, "reportIdA 不存在"));
+        EvalReportEntity b = evalReportRepository.findById(reportIdB)
+                .orElseThrow(() -> new BizException(ErrorCode.BAD_REQUEST, "reportIdB 不存在"));
+
+        EvalCompareResponse response = new EvalCompareResponse();
+        response.setReportA(toReportItem(a));
+        response.setReportB(toReportItem(b));
+
+        EvalCompareResponse.MetricDelta delta = new EvalCompareResponse.MetricDelta();
+        delta.setHitAtKDelta(a.getAvgHitAtK() - b.getAvgHitAtK());
+        delta.setMrrDelta(a.getAvgMrr() - b.getAvgMrr());
+        delta.setCitationPrecisionDelta(a.getAvgCitationPrecision() - b.getAvgCitationPrecision());
+        response.setDelta(delta);
+
+        Map<String, Object> mapA = parseSnapshot(a.getConfigSnapshotJson());
+        Map<String, Object> mapB = parseSnapshot(b.getConfigSnapshotJson());
+        response.setConfigDiff(buildConfigDiff(mapA, mapB));
+        return response;
     }
 
     private EvalCaseResult evaluateCase(String docId, GoldenCase goldenCase) {
@@ -153,6 +170,45 @@ public class OfflineEvalService {
         }
         double sum = values.stream().mapToDouble(v -> v == null ? 0.0d : v).sum();
         return sum / (double) values.size();
+    }
+
+    private EvalReportItem toReportItem(EvalReportEntity item) {
+        return new EvalReportItem(
+                item.getId(),
+                item.getDocId(),
+                item.getStrategyVersion(),
+                item.getTotalCases(),
+                item.getAvgHitAtK(),
+                item.getAvgMrr(),
+                item.getAvgCitationPrecision(),
+                item.getCreatedAt() == null ? "" : item.getCreatedAt().toString()
+        );
+    }
+
+    private Map<String, Object> parseSnapshot(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (Exception ex) {
+            return Map.of();
+        }
+    }
+
+    private List<EvalCompareResponse.ConfigDiffItem> buildConfigDiff(Map<String, Object> a, Map<String, Object> b) {
+        Set<String> keys = new java.util.HashSet<>();
+        keys.addAll(a.keySet());
+        keys.addAll(b.keySet());
+        return keys.stream()
+                .sorted()
+                .filter(key -> !Objects.equals(a.get(key), b.get(key)))
+                .map(key -> {
+                    EvalCompareResponse.ConfigDiffItem item = new EvalCompareResponse.ConfigDiffItem();
+                    item.setKey(key);
+                    item.setValueA(String.valueOf(a.get(key)));
+                    item.setValueB(String.valueOf(b.get(key)));
+                    return item;
+                })
+                .toList();
     }
 
     private void saveReport(String docId, EvalSummaryResponse summary) {

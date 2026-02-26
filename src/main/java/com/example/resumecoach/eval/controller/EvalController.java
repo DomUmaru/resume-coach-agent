@@ -2,6 +2,8 @@ package com.example.resumecoach.eval.controller;
 
 import com.example.resumecoach.common.api.ApiResponse;
 import com.example.resumecoach.common.trace.TraceContext;
+import com.example.resumecoach.eval.model.EvalCompareRequest;
+import com.example.resumecoach.eval.model.EvalCompareResponse;
 import com.example.resumecoach.eval.model.EvalReportItem;
 import com.example.resumecoach.eval.model.EvalRunRequest;
 import com.example.resumecoach.eval.model.EvalSummaryResponse;
@@ -39,5 +41,11 @@ public class EvalController {
     @GetMapping("/reports/{docId}")
     public ApiResponse<java.util.List<EvalReportItem>> latestReports(@PathVariable("docId") @NotBlank String docId) {
         return ApiResponse.ok(offlineEvalService.latestReports(docId), TraceContext.getTraceId());
+    }
+
+    @PostMapping("/compare")
+    public ApiResponse<EvalCompareResponse> compare(@RequestBody @Valid EvalCompareRequest request) {
+        EvalCompareResponse response = offlineEvalService.compare(request.getReportIdA(), request.getReportIdB());
+        return ApiResponse.ok(response, TraceContext.getTraceId());
     }
 }

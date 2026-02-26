@@ -79,6 +79,7 @@
 16. 已新增离线评测脚手架（Hit@K、MRR、Citation Precision）与黄金集样例接口。
 17. 离线评测结果已支持落库（eval_report）与历史报告查询（最近20条）。
 18. 评测报告已记录策略版本号与配置快照，可用于策略回归对比。
+19. 已新增评测报告对比接口（/api/eval/compare），可输出指标差异与配置差异。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -122,3 +123,4 @@
 9. 2026-02-22：完成离线评测模块初版（/api/eval/offline + golden-set-sample），支持检索质量基础量化。
 10. 2026-02-22：完成评测报告持久化与回归查询接口（/api/eval/reports/{docId}）。
 11. 2026-02-22：完成评测策略快照机制（strategyVersion + configSnapshotJson），回归报告可追踪配置差异。
+12. 2026-02-22：完成评测报告对比能力（reportId A/B），支持 A-B 指标变化与配置变更定位。
