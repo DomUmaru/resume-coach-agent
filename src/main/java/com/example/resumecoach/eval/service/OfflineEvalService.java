@@ -38,15 +38,18 @@ public class OfflineEvalService {
     private final ResumeChunkRepository resumeChunkRepository;
     private final ObjectMapper objectMapper;
     private final EvalReportRepository evalReportRepository;
+    private final EvalStrategySnapshotService evalStrategySnapshotService;
 
     public OfflineEvalService(RetrieveResumeContextTool retrieveResumeContextTool,
                               ResumeChunkRepository resumeChunkRepository,
                               ObjectMapper objectMapper,
-                              EvalReportRepository evalReportRepository) {
+                              EvalReportRepository evalReportRepository,
+                              EvalStrategySnapshotService evalStrategySnapshotService) {
         this.retrieveResumeContextTool = retrieveResumeContextTool;
         this.resumeChunkRepository = resumeChunkRepository;
         this.objectMapper = objectMapper;
         this.evalReportRepository = evalReportRepository;
+        this.evalStrategySnapshotService = evalStrategySnapshotService;
     }
 
     public EvalSummaryResponse evaluate(String docId) {
@@ -68,6 +71,7 @@ public class OfflineEvalService {
                 .map(item -> new EvalReportItem(
                         item.getId(),
                         item.getDocId(),
+                        item.getStrategyVersion(),
                         item.getTotalCases(),
                         item.getAvgHitAtK(),
                         item.getAvgMrr(),
@@ -153,6 +157,7 @@ public class OfflineEvalService {
 
     private void saveReport(String docId, EvalSummaryResponse summary) {
         try {
+            EvalStrategySnapshotService.StrategySnapshot snapshot = evalStrategySnapshotService.buildSnapshot();
             EvalReportEntity entity = new EvalReportEntity();
             entity.setId(IdGenerator.generate("eval"));
             entity.setDocId(docId);
@@ -160,6 +165,8 @@ public class OfflineEvalService {
             entity.setAvgHitAtK(summary.getAvgHitAtK());
             entity.setAvgMrr(summary.getAvgMRR());
             entity.setAvgCitationPrecision(summary.getAvgCitationPrecision());
+            entity.setStrategyVersion(snapshot.version());
+            entity.setConfigSnapshotJson(snapshot.json());
             entity.setReportJson(objectMapper.writeValueAsString(summary));
             evalReportRepository.save(entity);
         } catch (Exception ignored) {

@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS eval_report (
     avg_hit_at_k DOUBLE PRECISION NOT NULL,
     avg_mrr DOUBLE PRECISION NOT NULL,
     avg_citation_precision DOUBLE PRECISION NOT NULL,
+    strategy_version VARCHAR(64) NOT NULL,
+    config_snapshot_json TEXT NOT NULL,
     report_json TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL
 );

@@ -13,10 +13,10 @@ import lombok.NoArgsConstructor;
 public class EvalReportItem {
     private String reportId;
     private String docId;
+    private String strategyVersion;
     private int totalCases;
     private double avgHitAtK;
     private double avgMRR;
     private double avgCitationPrecision;
     private String createdAt;
 }
-

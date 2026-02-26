@@ -40,6 +40,12 @@ public class EvalReportEntity {
     @Column(name = "avg_citation_precision", nullable = false)
     private Double avgCitationPrecision;
 
+    @Column(name = "strategy_version", nullable = false, length = 64)
+    private String strategyVersion;
+
+    @Column(name = "config_snapshot_json", nullable = false, columnDefinition = "text")
+    private String configSnapshotJson;
+
     @Column(name = "report_json", nullable = false, columnDefinition = "text")
     private String reportJson;
 
@@ -51,4 +57,3 @@ public class EvalReportEntity {
         this.createdAt = LocalDateTime.now();
     }
 }
-

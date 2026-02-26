@@ -78,6 +78,7 @@
 15. 自动 Tool 选择已升级为 JSON 决策输出（toolName/confidence/reason）并完成字段校验。
 16. 已新增离线评测脚手架（Hit@K、MRR、Citation Precision）与黄金集样例接口。
 17. 离线评测结果已支持落库（eval_report）与历史报告查询（最近20条）。
+18. 评测报告已记录策略版本号与配置快照，可用于策略回归对比。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -120,3 +121,4 @@
 8. 2026-02-22：完成工具选择结构化升级（JSON schema 风格输出），SSE 新增置信度与理由追踪字段。
 9. 2026-02-22：完成离线评测模块初版（/api/eval/offline + golden-set-sample），支持检索质量基础量化。
 10. 2026-02-22：完成评测报告持久化与回归查询接口（/api/eval/reports/{docId}）。
+11. 2026-02-22：完成评测策略快照机制（strategyVersion + configSnapshotJson），回归报告可追踪配置差异。
