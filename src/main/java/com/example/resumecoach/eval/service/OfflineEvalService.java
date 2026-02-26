@@ -95,6 +95,7 @@ public class OfflineEvalService {
         Map<String, Object> mapA = parseSnapshot(a.getConfigSnapshotJson());
         Map<String, Object> mapB = parseSnapshot(b.getConfigSnapshotJson());
         response.setConfigDiff(buildConfigDiff(mapA, mapB));
+        fillWinnerAndSummary(response);
         return response;
     }
 
@@ -209,6 +210,43 @@ public class OfflineEvalService {
                     return item;
                 })
                 .toList();
+    }
+
+    private void fillWinnerAndSummary(EvalCompareResponse response) {
+        // 中文说明：采用加权得分做总体判断，MRR权重略高以强调排序质量。
+        double scoreA = weightedScore(response.getReportA());
+        double scoreB = weightedScore(response.getReportB());
+        double gap = scoreA - scoreB;
+
+        String winner;
+        if (Math.abs(gap) < 0.005d) {
+            winner = "tie";
+        } else {
+            winner = gap > 0 ? "A" : "B";
+        }
+        response.setWinner(winner);
+
+        String summary;
+        if ("tie".equals(winner)) {
+            summary = "两组策略综合表现接近，建议重点关注配置差异项并扩大样本再评估。";
+        } else {
+            String better = "A".equals(winner) ? "A" : "B";
+            EvalReportItem w = "A".equals(winner) ? response.getReportA() : response.getReportB();
+            summary = "综合得分 " + better + " 更优（Hit@K="
+                    + format4(w.getAvgHitAtK())
+                    + ", MRR=" + format4(w.getAvgMRR())
+                    + ", CitationPrecision=" + format4(w.getAvgCitationPrecision())
+                    + "）。";
+        }
+        response.setSummary(summary);
+    }
+
+    private double weightedScore(EvalReportItem item) {
+        return item.getAvgHitAtK() * 0.30d + item.getAvgMRR() * 0.40d + item.getAvgCitationPrecision() * 0.30d;
+    }
+
+    private String format4(double value) {
+        return String.format(Locale.ROOT, "%.4f", value);
     }
 
     private void saveReport(String docId, EvalSummaryResponse summary) {

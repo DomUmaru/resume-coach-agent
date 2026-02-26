@@ -13,6 +13,8 @@ public class EvalCompareResponse {
     private EvalReportItem reportA;
     private EvalReportItem reportB;
     private MetricDelta delta = new MetricDelta();
+    private String winner;
+    private String summary;
     private List<ConfigDiffItem> configDiff = new ArrayList<>();
 
     @Data
@@ -29,4 +31,3 @@ public class EvalCompareResponse {
         private String valueB;
     }
 }
-
