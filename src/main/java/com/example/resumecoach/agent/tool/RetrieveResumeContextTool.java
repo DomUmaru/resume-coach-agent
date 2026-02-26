@@ -7,6 +7,7 @@ import com.example.resumecoach.rag.context.Citation;
 import com.example.resumecoach.rag.query.MultiQueryService;
 import com.example.resumecoach.rag.query.QueryRewriteService;
 import com.example.resumecoach.rag.ranking.RerankService;
+import com.example.resumecoach.rag.retrieval.RetrievalTuningProperties;
 import com.example.resumecoach.resume.model.entity.ResumeChunkEntity;
 import com.example.resumecoach.resume.repository.ResumeChunkRepository;
 import org.springframework.stereotype.Component;
@@ -32,17 +33,20 @@ public class RetrieveResumeContextTool {
     private final MultiQueryService multiQueryService;
     private final RerankService rerankService;
     private final EmbeddingService embeddingService;
+    private final RetrievalTuningProperties tuningProperties;
 
     public RetrieveResumeContextTool(ResumeChunkRepository resumeChunkRepository,
                                      QueryRewriteService queryRewriteService,
                                      MultiQueryService multiQueryService,
                                      RerankService rerankService,
-                                     EmbeddingService embeddingService) {
+                                     EmbeddingService embeddingService,
+                                     RetrievalTuningProperties tuningProperties) {
         this.resumeChunkRepository = resumeChunkRepository;
         this.queryRewriteService = queryRewriteService;
         this.multiQueryService = multiQueryService;
         this.rerankService = rerankService;
         this.embeddingService = embeddingService;
+        this.tuningProperties = tuningProperties;
     }
 
     public ToolCallResult run(String query, String docId, ChatStreamRequest.Options options) {
@@ -60,6 +64,7 @@ public class RetrieveResumeContextTool {
         List<String> queries = enableMultiQuery
                 ? multiQueryService.expand(query, rewritten)
                 : List.of(rewritten == null ? "" : rewritten);
+        int dynamicTopK = decideTopK(query);
 
         Set<String> mergedTokens = new HashSet<>();
         Map<String, ResumeChunkEntity> candidates = new HashMap<>();
@@ -74,11 +79,11 @@ public class RetrieveResumeContextTool {
 
             List<ResumeChunkEntity> keywordTop = allChunks.stream()
                     .sorted((a, b) -> Double.compare(score(tokens, b.getContent()), score(tokens, a.getContent())))
-                    .limit(6)
+                    .limit(dynamicTopK + 2L)
                     .toList();
 
-            List<ResumeChunkEntity> ftsTop = resumeChunkRepository.searchByFts(docId, q, 6);
-            List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(allChunks, q, 6) : List.of();
+            List<ResumeChunkEntity> ftsTop = resumeChunkRepository.searchByFts(docId, q, dynamicTopK + 2);
+            List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(allChunks, q, dynamicTopK + 2) : List.of();
             addRrf(rrfScore, candidates, keywordTop);
             addRrf(rrfScore, candidates, ftsTop);
             addRrf(rrfScore, candidates, vectorTop);
@@ -88,12 +93,12 @@ public class RetrieveResumeContextTool {
                 .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                 .map(entry -> candidates.get(entry.getKey()))
                 .filter(item -> item != null)
-                .limit(8)
+                .limit(dynamicTopK + 4L)
                 .toList();
 
         List<ResumeChunkEntity> topChunks = enableRerank
-                ? rerankService.rerank(fused, mergedTokens, 4)
-                : fused.stream().limit(4).toList();
+                ? rerankService.rerank(fused, mergedTokens, dynamicTopK)
+                : fused.stream().limit(dynamicTopK).toList();
 
         String merged = topChunks.stream()
                 .map(ResumeChunkEntity::getContent)
@@ -118,13 +123,18 @@ public class RetrieveResumeContextTool {
         String docId = chunks.isEmpty() ? "" : chunks.get(0).getDocId();
 
         try {
-            return resumeChunkRepository.searchByVectorDistance(docId, vectorLiteral, dim, topN);
+            List<ResumeChunkEntity> dbTop = resumeChunkRepository.searchByVectorDistance(docId, vectorLiteral, dim, topN * 2);
+            return dbTop.stream()
+                    .filter(chunk -> vectorScore(chunk, queryVector) >= tuningProperties.getVectorMinScore())
+                    .limit(topN)
+                    .toList();
         } catch (Exception ignored) {
             // 中文说明：数据库未安装 pgvector 或 SQL 执行异常时，降级为应用内余弦排序。
             return chunks.stream()
                     .sorted((a, b) -> Double.compare(
                             vectorScore(b, queryVector),
                             vectorScore(a, queryVector)))
+                    .filter(chunk -> vectorScore(chunk, queryVector) >= tuningProperties.getVectorMinScore())
                     .limit(topN)
                     .toList();
         }
@@ -163,5 +173,15 @@ public class RetrieveResumeContextTool {
                 .map(String::trim)
                 .filter(token -> !token.isBlank())
                 .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    private int decideTopK(String query) {
+        Set<String> tokens = tokenize(query);
+        int size = tokens.size();
+        int candidate = size >= 14 ? tuningProperties.getMaxTopK()
+                : size <= 4 ? tuningProperties.getMinTopK()
+                : tuningProperties.getDefaultTopK() + 1;
+        candidate = Math.max(tuningProperties.getMinTopK(), candidate);
+        return Math.min(tuningProperties.getMaxTopK(), candidate);
     }
 }

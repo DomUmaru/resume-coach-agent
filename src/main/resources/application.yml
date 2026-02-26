@@ -34,6 +34,11 @@ app:
   rag:
     embedding:
       fallback-dim: ${RAG_EMBEDDING_FALLBACK_DIM:128}
+    retrieval:
+      min-top-k: ${RAG_RETRIEVAL_MIN_TOPK:3}
+      max-top-k: ${RAG_RETRIEVAL_MAX_TOPK:8}
+      default-top-k: ${RAG_RETRIEVAL_DEFAULT_TOPK:4}
+      vector-min-score: ${RAG_RETRIEVAL_VECTOR_MIN_SCORE:0.25}
 
 management:
   endpoints:
