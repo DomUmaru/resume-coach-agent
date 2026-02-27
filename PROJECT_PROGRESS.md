@@ -82,6 +82,7 @@
 19. 已新增评测报告对比接口（/api/eval/compare），可输出指标差异与配置差异。
 20. 评测对比已支持自动结论（winner + summary），可直接用于答辩展示。
 21. 已新增 RAG 全链路可观测日志（rag_trace_log）与查询接口（按 sessionId / traceId）。
+22. 已新增会话级 Trace 摘要接口（平均耗时、工具分布、Guardrail 拦截率）。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -128,3 +129,4 @@
 12. 2026-02-22：完成评测报告对比能力（reportId A/B），支持 A-B 指标变化与配置变更定位。
 13. 2026-02-22：完成评测对比自动结论生成（加权评分判优 + 中文摘要）。
 14. 2026-02-22：完成 Observability 初版：记录 query/rewrite/retrieval/tool/guardrail/latency/citations 全链路日志。
+15. 2026-02-22：完成 Trace 可视化摘要（/api/trace/summary/{sessionId}），可直接驱动调试看板。

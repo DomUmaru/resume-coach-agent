@@ -3,6 +3,7 @@ package com.example.resumecoach.observability.controller;
 import com.example.resumecoach.common.api.ApiResponse;
 import com.example.resumecoach.common.trace.TraceContext;
 import com.example.resumecoach.observability.model.RagTraceLogItem;
+import com.example.resumecoach.observability.model.TraceSummaryResponse;
 import com.example.resumecoach.observability.service.RagTraceLogService;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.validation.annotation.Validated;
@@ -36,5 +37,9 @@ public class TraceController {
     public ApiResponse<RagTraceLogItem> detail(@PathVariable("traceId") @NotBlank String traceId) {
         return ApiResponse.ok(ragTraceLogService.detailByTraceId(traceId), TraceContext.getTraceId());
     }
-}
 
+    @GetMapping("/summary/{sessionId}")
+    public ApiResponse<TraceSummaryResponse> summary(@PathVariable("sessionId") @NotBlank String sessionId) {
+        return ApiResponse.ok(ragTraceLogService.summaryBySession(sessionId), TraceContext.getTraceId());
+    }
+}
