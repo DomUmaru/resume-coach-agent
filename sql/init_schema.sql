@@ -69,3 +69,21 @@ CREATE TABLE IF NOT EXISTS eval_report (
 );
 
 CREATE INDEX IF NOT EXISTS idx_eval_report_doc_id_time ON eval_report(doc_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS rag_trace_log (
+    id VARCHAR(64) PRIMARY KEY,
+    trace_id VARCHAR(64) NOT NULL,
+    session_id VARCHAR(64) NOT NULL,
+    raw_query TEXT NOT NULL,
+    rewritten_query TEXT,
+    multi_query_json TEXT,
+    retrieval_json TEXT,
+    tool_json TEXT,
+    guardrail_json TEXT,
+    latency_json TEXT,
+    final_citations_json TEXT,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_trace_session_time ON rag_trace_log(session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rag_trace_trace_id ON rag_trace_log(trace_id);

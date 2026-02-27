@@ -6,10 +6,10 @@ import com.example.resumecoach.agent.model.ToolSelectionDecision;
 import com.example.resumecoach.agent.skill.AnswerSkill;
 import com.example.resumecoach.agent.skill.IntentSkill;
 import com.example.resumecoach.agent.skill.RetrievalSkill;
-import com.example.resumecoach.agent.tool.ToolNames;
 import com.example.resumecoach.agent.tool.ResumeQaTool;
 import com.example.resumecoach.agent.tool.RetrieveResumeContextTool;
 import com.example.resumecoach.agent.tool.StarRewriteTool;
+import com.example.resumecoach.agent.tool.ToolNames;
 import com.example.resumecoach.ai.service.LlmService;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
 import com.example.resumecoach.rag.context.Citation;
@@ -18,13 +18,13 @@ import com.example.resumecoach.rag.guardrail.NoEvidencePolicyService;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 中文说明：Agent 编排器，串联 Skill 决策、Tool 执行与防幻觉守卫。
- * 输入：聊天请求。
- * 输出：最终答案与证据引用。
- * 策略：先检索再生成，最后做 citation 一致性校验，不通过则触发安全回复。
+ * 策略：产出完整执行痕迹（检索/工具/校验/耗时）用于可观测与回归分析。
  */
 @Component
 public class AgentOrchestrator {
@@ -60,6 +60,7 @@ public class AgentOrchestrator {
     }
 
     public AgentResult handle(ChatStreamRequest request) {
+        long totalStart = System.currentTimeMillis();
         String intent = intentSkill.decideIntent(request.getMessage(), request.getIntentHint());
         boolean shouldRetrieve = retrievalSkill.shouldRetrieve(intent);
         SkillDecision decision = new SkillDecision(intent, shouldRetrieve);
@@ -70,28 +71,46 @@ public class AgentOrchestrator {
         String selectedTool = ToolNames.NONE;
         double selectedToolConfidence = 0.0d;
         String selectedToolReason = "none";
+        Map<String, Object> retrievalTrace = new LinkedHashMap<>();
+        Map<String, Object> guardrailTrace = new LinkedHashMap<>();
 
+        long retrievalStart = System.currentTimeMillis();
         if (decision.isShouldRetrieve()) {
-            ToolCallResult retrieval = retrieveResumeContextTool.run(request.getMessage(), request.getDocId(), request.getOptions());
+            RetrieveResumeContextTool.RetrievalExecution retrievalExec =
+                    retrieveResumeContextTool.runWithTrace(request.getMessage(), request.getDocId(), request.getOptions());
+            ToolCallResult retrieval = retrievalExec.result();
+            retrievalTrace.putAll(retrievalExec.trace());
+
             retrievalEvidence = retrieval.getContent();
             mergedCitations.addAll(retrieval.getCitations());
             if (retrievalEvidence == null || retrievalEvidence.isBlank() || retrieval.getCitations().isEmpty()) {
+                guardrailTrace.put("stage", "pre-generate");
+                guardrailTrace.put("pass", false);
+                guardrailTrace.put("reason", "retrieval-empty");
                 return new AgentResult(
                         decision,
                         noEvidencePolicyService.noEvidenceReply(intent),
                         List.of(),
                         ToolNames.RETRIEVE,
                         1.0d,
-                        "retrieval-empty");
+                        "retrieval-empty",
+                        retrievalTrace,
+                        guardrailTrace,
+                        buildLatency(totalStart, retrievalStart, System.currentTimeMillis(), System.currentTimeMillis()));
             }
+        } else {
+            retrievalTrace.put("rawQuery", request.getMessage());
+            retrievalTrace.put("rewrittenQuery", request.getMessage());
+            retrievalTrace.put("multiQueries", List.of());
         }
+        long retrievalEnd = System.currentTimeMillis();
 
+        long generationStart = System.currentTimeMillis();
         ToolSelectionDecision toolDecision = llmService.chooseTool(intent, request.getMessage(), decision.isShouldRetrieve());
         selectedTool = toolDecision.getToolName();
         selectedToolConfidence = toolDecision.getConfidence();
         selectedToolReason = toolDecision.getReason();
 
-        // 中文说明：Skill 负责路由决策，Tool 只负责执行对应任务。
         if (ToolNames.STAR_REWRITE.equals(selectedTool)) {
             ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
             toolContent = rewrite.getContent();
@@ -119,13 +138,45 @@ public class AgentOrchestrator {
         }
 
         String finalAnswer = answerSkill.composeFinalAnswer(intent, toolContent);
-        CitationVerifierService.VerificationResult result =
+        CitationVerifierService.VerificationResult verify =
                 citationVerifierService.verify(finalAnswer, retrievalEvidence, mergedCitations);
-        if (!result.pass() && decision.isShouldRetrieve()) {
-            return new AgentResult(decision, noEvidencePolicyService.weakCitationReply(result.overlap()),
-                    mergedCitations, selectedTool, selectedToolConfidence, selectedToolReason);
+        guardrailTrace.put("stage", "post-generate");
+        guardrailTrace.put("pass", verify.pass());
+        guardrailTrace.put("overlap", verify.overlap());
+        guardrailTrace.put("reason", verify.reason());
+        long generationEnd = System.currentTimeMillis();
+
+        if (!verify.pass() && decision.isShouldRetrieve()) {
+            return new AgentResult(
+                    decision,
+                    noEvidencePolicyService.weakCitationReply(verify.overlap()),
+                    mergedCitations,
+                    selectedTool,
+                    selectedToolConfidence,
+                    selectedToolReason,
+                    retrievalTrace,
+                    guardrailTrace,
+                    buildLatency(totalStart, retrievalStart, retrievalEnd, generationEnd));
         }
-        return new AgentResult(decision, finalAnswer, mergedCitations, selectedTool, selectedToolConfidence, selectedToolReason);
+
+        return new AgentResult(
+                decision,
+                finalAnswer,
+                mergedCitations,
+                selectedTool,
+                selectedToolConfidence,
+                selectedToolReason,
+                retrievalTrace,
+                guardrailTrace,
+                buildLatency(totalStart, retrievalStart, retrievalEnd, generationEnd));
+    }
+
+    private Map<String, Object> buildLatency(long totalStart, long retrievalStart, long retrievalEnd, long generationEnd) {
+        Map<String, Object> latency = new LinkedHashMap<>();
+        latency.put("retrievalMs", Math.max(0, retrievalEnd - retrievalStart));
+        latency.put("generationMs", Math.max(0, generationEnd - retrievalEnd));
+        latency.put("totalMs", Math.max(0, generationEnd - totalStart));
+        return latency;
     }
 
     /**
@@ -138,19 +189,28 @@ public class AgentOrchestrator {
         private final String selectedTool;
         private final double selectedToolConfidence;
         private final String selectedToolReason;
+        private final Map<String, Object> retrievalTrace;
+        private final Map<String, Object> guardrailTrace;
+        private final Map<String, Object> latency;
 
         public AgentResult(SkillDecision decision,
                            String answer,
                            List<Citation> citations,
                            String selectedTool,
                            double selectedToolConfidence,
-                           String selectedToolReason) {
+                           String selectedToolReason,
+                           Map<String, Object> retrievalTrace,
+                           Map<String, Object> guardrailTrace,
+                           Map<String, Object> latency) {
             this.decision = decision;
             this.answer = answer;
             this.citations = citations;
             this.selectedTool = selectedTool;
             this.selectedToolConfidence = selectedToolConfidence;
             this.selectedToolReason = selectedToolReason;
+            this.retrievalTrace = retrievalTrace;
+            this.guardrailTrace = guardrailTrace;
+            this.latency = latency;
         }
 
         public SkillDecision getDecision() {
@@ -176,5 +236,18 @@ public class AgentOrchestrator {
         public String getSelectedToolReason() {
             return selectedToolReason;
         }
+
+        public Map<String, Object> getRetrievalTrace() {
+            return retrievalTrace;
+        }
+
+        public Map<String, Object> getGuardrailTrace() {
+            return guardrailTrace;
+        }
+
+        public Map<String, Object> getLatency() {
+            return latency;
+        }
     }
 }
+

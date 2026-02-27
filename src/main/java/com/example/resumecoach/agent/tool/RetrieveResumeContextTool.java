@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 
 /**
  * 中文说明：简历上下文检索工具。
- * 策略：按 Rewrite -> MultiQuery -> Hybrid 召回 -> Rerank 的顺序执行。
+ * 策略：按 Rewrite -> MultiQuery -> Hybrid 召回 -> Rerank 的顺序执行，并输出检索追踪信息。
  */
 @Component
 public class RetrieveResumeContextTool {
@@ -50,9 +51,20 @@ public class RetrieveResumeContextTool {
     }
 
     public ToolCallResult run(String query, String docId, ChatStreamRequest.Options options) {
+        return runWithTrace(query, docId, options).result();
+    }
+
+    public RetrievalExecution runWithTrace(String query, String docId, ChatStreamRequest.Options options) {
         List<ResumeChunkEntity> allChunks = resumeChunkRepository.findByDocIdOrderBySourcePageAsc(docId);
         if (allChunks.isEmpty()) {
-            return new ToolCallResult("retrieve_resume_context_tool", "未检索到相关简历证据。", List.of());
+            Map<String, Object> trace = new LinkedHashMap<>();
+            trace.put("rawQuery", query);
+            trace.put("rewrittenQuery", query);
+            trace.put("multiQueries", List.of());
+            trace.put("candidateCount", 0);
+            return new RetrievalExecution(
+                    new ToolCallResult("retrieve_resume_context_tool", "未检索到相关简历证据。", List.of()),
+                    trace);
         }
 
         boolean enableRewrite = options == null || Boolean.TRUE.equals(options.getEnableRewrite());
@@ -69,6 +81,9 @@ public class RetrieveResumeContextTool {
         Set<String> mergedTokens = new HashSet<>();
         Map<String, ResumeChunkEntity> candidates = new HashMap<>();
         Map<String, Double> rrfScore = new HashMap<>();
+        int ftsTotal = 0;
+        int keywordTotal = 0;
+        int vectorTotal = 0;
 
         for (String q : queries) {
             if (q == null || q.isBlank()) {
@@ -81,9 +96,14 @@ public class RetrieveResumeContextTool {
                     .sorted((a, b) -> Double.compare(score(tokens, b.getContent()), score(tokens, a.getContent())))
                     .limit(dynamicTopK + 2L)
                     .toList();
+            keywordTotal += keywordTop.size();
 
             List<ResumeChunkEntity> ftsTop = resumeChunkRepository.searchByFts(docId, q, dynamicTopK + 2);
+            ftsTotal += ftsTop.size();
+
             List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(allChunks, q, dynamicTopK + 2) : List.of();
+            vectorTotal += vectorTop.size();
+
             addRrf(rrfScore, candidates, keywordTop);
             addRrf(rrfScore, candidates, ftsTop);
             addRrf(rrfScore, candidates, vectorTop);
@@ -113,7 +133,20 @@ public class RetrieveResumeContextTool {
                         rerankService.score(item.getContent(), mergedTokens)))
                 .toList();
 
-        return new ToolCallResult("retrieve_resume_context_tool", merged, citations);
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("rawQuery", query);
+        trace.put("rewrittenQuery", rewritten);
+        trace.put("multiQueries", queries);
+        trace.put("dynamicTopK", dynamicTopK);
+        trace.put("keywordCandidates", keywordTotal);
+        trace.put("ftsCandidates", ftsTotal);
+        trace.put("vectorCandidates", vectorTotal);
+        trace.put("candidateCount", candidates.size());
+        trace.put("fusedCount", fused.size());
+        trace.put("finalCount", topChunks.size());
+        trace.put("finalChunkIds", topChunks.stream().map(ResumeChunkEntity::getId).toList());
+
+        return new RetrievalExecution(new ToolCallResult("retrieve_resume_context_tool", merged, citations), trace);
     }
 
     private List<ResumeChunkEntity> searchByVector(List<ResumeChunkEntity> chunks, String query, int topN) {
@@ -131,9 +164,7 @@ public class RetrieveResumeContextTool {
         } catch (Exception ignored) {
             // 中文说明：数据库未安装 pgvector 或 SQL 执行异常时，降级为应用内余弦排序。
             return chunks.stream()
-                    .sorted((a, b) -> Double.compare(
-                            vectorScore(b, queryVector),
-                            vectorScore(a, queryVector)))
+                    .sorted((a, b) -> Double.compare(vectorScore(b, queryVector), vectorScore(a, queryVector)))
                     .filter(chunk -> vectorScore(chunk, queryVector) >= tuningProperties.getVectorMinScore())
                     .limit(topN)
                     .toList();
@@ -184,4 +215,11 @@ public class RetrieveResumeContextTool {
         candidate = Math.max(tuningProperties.getMinTopK(), candidate);
         return Math.min(tuningProperties.getMaxTopK(), candidate);
     }
+
+    /**
+     * 中文说明：检索执行结果，包含工具输出与调试追踪信息。
+     */
+    public record RetrievalExecution(ToolCallResult result, Map<String, Object> trace) {
+    }
 }
+
