@@ -89,6 +89,7 @@
 26. 已完成 Metadata Filter：支持按 section/page/chunkType 限定检索范围，并在追踪日志中记录过滤条件。
 27. 已完成 Fusion Strategy 可切换：Hybrid Retrieval 支持 RRF / WEIGHTED 两种融合策略，并支持 keyword/fts/vector 权重配置。
 28. 已完成 Eval 指标增强：离线评测新增 Recall@K、nDCG@K 指标，报告落库与对比接口同步扩展。
+29. 已完成 Trace Summary 增强：会话级摘要新增 P95 时延、检索触发率、fallback 率、候选规模、引用规模、压缩后上下文规模及融合/Guardrail 分布。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -142,3 +143,4 @@
 19. 2026-02-28：完成 Metadata Filter：请求选项新增 section/page/chunkType 过滤条件，检索链路三路召回统一按过滤条件收口。
 20. 2026-02-28：完成 Fusion Strategy 可切换：Hybrid Retrieval 新增 RRF / WEIGHTED 两种融合策略，支持 keyword/fts/vector 权重配置并写入 trace。
 21. 2026-02-28：完成 Eval 指标增强：离线评测新增 Recall@K、nDCG@K，评测报告实体、汇总响应、对比结论与策略快照同步扩展。
+22. 2026-02-28：完成 Trace Summary 增强：摘要聚合新增 P95 时延、检索触发率、fallback 率、候选规模、引用规模、压缩上下文规模、融合策略分布与 Guardrail 原因分布。

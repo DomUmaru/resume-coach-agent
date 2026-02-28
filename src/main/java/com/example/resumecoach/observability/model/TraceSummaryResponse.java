@@ -15,7 +15,18 @@ public class TraceSummaryResponse {
     private double avgRetrievalMs;
     private double avgGenerationMs;
     private double avgTotalMs;
+    private double p95RetrievalMs;
+    private double p95GenerationMs;
+    private double p95TotalMs;
     private double guardrailBlockRate;
+    private double retrievalTriggerRate;
+    private double fallbackRate;
+    private double avgCandidateCount;
+    private double avgFinalChunkCount;
+    private double avgCitationCount;
+    private double avgContextCompressedChars;
     private Map<String, Integer> toolDistribution = new LinkedHashMap<>();
+    private Map<String, Integer> guardrailReasonDistribution = new LinkedHashMap<>();
+    private Map<String, Integer> fusionStrategyDistribution = new LinkedHashMap<>();
 }
 
