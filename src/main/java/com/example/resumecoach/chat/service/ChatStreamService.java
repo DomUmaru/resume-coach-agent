@@ -53,6 +53,7 @@ public class ChatStreamService {
                 toolPayload.put("intent", result.getDecision().getIntent());
                 toolPayload.put("shouldRetrieve", result.getDecision().isShouldRetrieve());
                 toolPayload.put("selectedTool", result.getSelectedTool());
+                toolPayload.put("selectedToolArguments", result.getSelectedToolArguments());
                 toolPayload.put("selectedToolConfidence", result.getSelectedToolConfidence());
                 toolPayload.put("selectedToolReason", result.getSelectedToolReason());
                 sendEvent(emitter, "tool_call", toolPayload);
@@ -105,4 +106,3 @@ public class ChatStreamService {
         emitter.send(SseEmitter.event().name(eventName).data(data));
     }
 }
-

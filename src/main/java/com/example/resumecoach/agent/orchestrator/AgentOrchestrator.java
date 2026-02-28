@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 中文说明：Agent 编排器，串联 Skill 决策、Tool 执行与防幻觉守卫。
- * 策略：产出完整执行痕迹（检索/工具/校验/耗时）用于可观测与回归分析。
+ * 中文说明：Agent 编排器，串联 Skill 决策、Tool 执行与 Guardrail 校验。
+ * 策略：输出完整执行轨迹（检索/工具/参数/校验/耗时），用于可观测与回归分析。
  */
 @Component
 public class AgentOrchestrator {
@@ -69,6 +69,7 @@ public class AgentOrchestrator {
         String retrievalEvidence = "";
         String toolContent = "";
         String selectedTool = ToolNames.NONE;
+        Map<String, Object> selectedToolArguments = new LinkedHashMap<>();
         double selectedToolConfidence = 0.0d;
         String selectedToolReason = "none";
         Map<String, Object> retrievalTrace = new LinkedHashMap<>();
@@ -92,6 +93,7 @@ public class AgentOrchestrator {
                         noEvidencePolicyService.noEvidenceReply(intent),
                         List.of(),
                         ToolNames.RETRIEVE,
+                        Map.of(),
                         1.0d,
                         "retrieval-empty",
                         retrievalTrace,
@@ -108,15 +110,18 @@ public class AgentOrchestrator {
         long generationStart = System.currentTimeMillis();
         ToolSelectionDecision toolDecision = llmService.chooseTool(intent, request.getMessage(), decision.isShouldRetrieve());
         selectedTool = toolDecision.getToolName();
+        selectedToolArguments.putAll(toolDecision.getArguments());
         selectedToolConfidence = toolDecision.getConfidence();
         selectedToolReason = toolDecision.getReason();
 
         if (ToolNames.STAR_REWRITE.equals(selectedTool)) {
-            ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
+            String rawText = stringArg(selectedToolArguments, "rawText", request.getMessage());
+            ToolCallResult rewrite = starRewriteTool.run(rawText, request.getDocId(), retrievalEvidence);
             toolContent = rewrite.getContent();
             mergedCitations.addAll(rewrite.getCitations());
         } else if (ToolNames.RESUME_QA.equals(selectedTool)) {
-            ToolCallResult qa = resumeQaTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
+            String question = stringArg(selectedToolArguments, "question", request.getMessage());
+            ToolCallResult qa = resumeQaTool.run(question, request.getDocId(), retrievalEvidence);
             toolContent = qa.getContent();
             mergedCitations.addAll(qa.getCitations());
         } else if (ToolNames.RETRIEVE.equals(selectedTool)) {
@@ -126,6 +131,8 @@ public class AgentOrchestrator {
             toolContent = rewrite.getContent();
             mergedCitations.addAll(rewrite.getCitations());
             selectedTool = ToolNames.STAR_REWRITE;
+            selectedToolArguments = new LinkedHashMap<>();
+            selectedToolArguments.put("rawText", request.getMessage());
             selectedToolConfidence = Math.max(selectedToolConfidence, 0.7d);
             selectedToolReason = "intent-fallback";
         } else if ("QA".equals(intent) || "MOCK_INTERVIEW".equals(intent)) {
@@ -133,6 +140,8 @@ public class AgentOrchestrator {
             toolContent = qa.getContent();
             mergedCitations.addAll(qa.getCitations());
             selectedTool = ToolNames.RESUME_QA;
+            selectedToolArguments = new LinkedHashMap<>();
+            selectedToolArguments.put("question", request.getMessage());
             selectedToolConfidence = Math.max(selectedToolConfidence, 0.7d);
             selectedToolReason = "intent-fallback";
         }
@@ -152,6 +161,7 @@ public class AgentOrchestrator {
                     noEvidencePolicyService.weakCitationReply(verify.overlap()),
                     mergedCitations,
                     selectedTool,
+                    selectedToolArguments,
                     selectedToolConfidence,
                     selectedToolReason,
                     retrievalTrace,
@@ -164,6 +174,7 @@ public class AgentOrchestrator {
                 finalAnswer,
                 mergedCitations,
                 selectedTool,
+                selectedToolArguments,
                 selectedToolConfidence,
                 selectedToolReason,
                 retrievalTrace,
@@ -179,6 +190,17 @@ public class AgentOrchestrator {
         return latency;
     }
 
+    private String stringArg(Map<String, Object> arguments, String key, String fallback) {
+        if (arguments == null) {
+            return fallback;
+        }
+        Object value = arguments.get(key);
+        if (value == null || String.valueOf(value).isBlank()) {
+            return fallback;
+        }
+        return String.valueOf(value);
+    }
+
     /**
      * 中文说明：编排结果对象，供聊天服务进行 SSE 输出和持久化。
      */
@@ -187,6 +209,7 @@ public class AgentOrchestrator {
         private final String answer;
         private final List<Citation> citations;
         private final String selectedTool;
+        private final Map<String, Object> selectedToolArguments;
         private final double selectedToolConfidence;
         private final String selectedToolReason;
         private final Map<String, Object> retrievalTrace;
@@ -197,6 +220,7 @@ public class AgentOrchestrator {
                            String answer,
                            List<Citation> citations,
                            String selectedTool,
+                           Map<String, Object> selectedToolArguments,
                            double selectedToolConfidence,
                            String selectedToolReason,
                            Map<String, Object> retrievalTrace,
@@ -206,6 +230,7 @@ public class AgentOrchestrator {
             this.answer = answer;
             this.citations = citations;
             this.selectedTool = selectedTool;
+            this.selectedToolArguments = selectedToolArguments;
             this.selectedToolConfidence = selectedToolConfidence;
             this.selectedToolReason = selectedToolReason;
             this.retrievalTrace = retrievalTrace;
@@ -229,6 +254,10 @@ public class AgentOrchestrator {
             return selectedTool;
         }
 
+        public Map<String, Object> getSelectedToolArguments() {
+            return selectedToolArguments;
+        }
+
         public double getSelectedToolConfidence() {
             return selectedToolConfidence;
         }
@@ -250,4 +279,3 @@ public class AgentOrchestrator {
         }
     }
 }
-

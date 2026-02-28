@@ -90,6 +90,7 @@
 27. 已完成 Fusion Strategy 可切换：Hybrid Retrieval 支持 RRF / WEIGHTED 两种融合策略，并支持 keyword/fts/vector 权重配置。
 28. 已完成 Eval 指标增强：离线评测新增 Recall@K、nDCG@K 指标，报告落库与对比接口同步扩展。
 29. 已完成 Trace Summary 增强：会话级摘要新增 P95 时延、检索触发率、fallback 率、候选规模、引用规模、压缩后上下文规模及融合/Guardrail 分布。
+30. 已完成 Tool / Function Calling 工程化第一步：新增 Tool Registry、工具 schema 描述与结构化 tool arguments 决策，SSE 与追踪日志可展示工具参数。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -144,3 +145,4 @@
 20. 2026-02-28：完成 Fusion Strategy 可切换：Hybrid Retrieval 新增 RRF / WEIGHTED 两种融合策略，支持 keyword/fts/vector 权重配置并写入 trace。
 21. 2026-02-28：完成 Eval 指标增强：离线评测新增 Recall@K、nDCG@K，评测报告实体、汇总响应、对比结论与策略快照同步扩展。
 22. 2026-02-28：完成 Trace Summary 增强：摘要聚合新增 P95 时延、检索触发率、fallback 率、候选规模、引用规模、压缩上下文规模、融合策略分布与 Guardrail 原因分布。
+23. 2026-02-28：完成 Tool / Function Calling 工程化第一步：新增 Tool Registry 与工具 schema 描述，工具选择决策升级为 toolName + arguments，编排器与 SSE 透传工具参数。
