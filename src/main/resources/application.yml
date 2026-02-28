@@ -38,6 +38,10 @@ app:
     embedding:
       fallback-dim: ${RAG_EMBEDDING_FALLBACK_DIM:128}
     retrieval:
+      fusion-strategy: ${RAG_RETRIEVAL_FUSION_STRATEGY:RRF}
+      keyword-weight: ${RAG_RETRIEVAL_KEYWORD_WEIGHT:0.30}
+      fts-weight: ${RAG_RETRIEVAL_FTS_WEIGHT:0.35}
+      vector-weight: ${RAG_RETRIEVAL_VECTOR_WEIGHT:0.35}
       min-top-k: ${RAG_RETRIEVAL_MIN_TOPK:3}
       max-top-k: ${RAG_RETRIEVAL_MAX_TOPK:8}
       default-top-k: ${RAG_RETRIEVAL_DEFAULT_TOPK:4}

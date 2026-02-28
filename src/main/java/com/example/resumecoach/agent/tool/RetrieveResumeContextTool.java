@@ -97,6 +97,7 @@ public class RetrieveResumeContextTool {
         int ftsTotal = 0;
         int keywordTotal = 0;
         int vectorTotal = 0;
+        String fusionStrategy = normalizeFusionStrategy();
 
         for (String q : queries) {
             if (q == null || q.isBlank()) {
@@ -119,9 +120,9 @@ public class RetrieveResumeContextTool {
             List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(childChunks, q, dynamicTopK + 2) : List.of();
             vectorTotal += vectorTop.size();
 
-            addRrf(rrfScore, candidates, keywordTop);
-            addRrf(rrfScore, candidates, ftsTop);
-            addRrf(rrfScore, candidates, vectorTop);
+            mergeScores(rrfScore, candidates, keywordTop, tuningProperties.getKeywordWeight(), fusionStrategy);
+            mergeScores(rrfScore, candidates, ftsTop, tuningProperties.getFtsWeight(), fusionStrategy);
+            mergeScores(rrfScore, candidates, vectorTop, tuningProperties.getVectorWeight(), fusionStrategy);
         }
 
         List<ResumeChunkEntity> fused = rrfScore.entrySet().stream()
@@ -160,6 +161,8 @@ public class RetrieveResumeContextTool {
         trace.put("rewrittenQuery", rewritten);
         trace.put("multiQueries", queries);
         trace.put("filter", filterTrace(filter));
+        trace.put("fusionStrategy", fusionStrategy);
+        trace.put("fusionWeights", fusionWeightsTrace());
         trace.put("dynamicTopK", dynamicTopK);
         trace.put("keywordCandidates", keywordTotal);
         trace.put("ftsCandidates", ftsTotal);
@@ -253,6 +256,21 @@ public class RetrieveResumeContextTool {
         return parent == null ? child : parent;
     }
 
+    private void mergeScores(Map<String, Double> scoreMap,
+                             Map<String, ResumeChunkEntity> entityMap,
+                             List<ResumeChunkEntity> ranking,
+                             double weight,
+                             String fusionStrategy) {
+        if (ranking == null || ranking.isEmpty()) {
+            return;
+        }
+        if ("WEIGHTED".equals(fusionStrategy)) {
+            addWeighted(scoreMap, entityMap, ranking, weight);
+            return;
+        }
+        addRrf(scoreMap, entityMap, ranking);
+    }
+
     private void addRrf(Map<String, Double> scoreMap,
                         Map<String, ResumeChunkEntity> entityMap,
                         List<ResumeChunkEntity> ranking) {
@@ -262,6 +280,39 @@ public class RetrieveResumeContextTool {
             entityMap.put(item.getId(), item);
             scoreMap.merge(item.getId(), 1.0d / (k + i + 1), Double::sum);
         }
+    }
+
+    private void addWeighted(Map<String, Double> scoreMap,
+                             Map<String, ResumeChunkEntity> entityMap,
+                             List<ResumeChunkEntity> ranking,
+                             double weight) {
+        int n = ranking.size();
+        if (n == 0 || weight <= 0.0d) {
+            return;
+        }
+        for (int i = 0; i < ranking.size(); i++) {
+            ResumeChunkEntity item = ranking.get(i);
+            entityMap.put(item.getId(), item);
+            double normalizedRankScore = (double) (n - i) / (double) n;
+            scoreMap.merge(item.getId(), normalizedRankScore * weight, Double::sum);
+        }
+    }
+
+    private String normalizeFusionStrategy() {
+        String raw = tuningProperties.getFusionStrategy();
+        if (raw == null || raw.isBlank()) {
+            return "RRF";
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return "WEIGHTED".equals(normalized) ? "WEIGHTED" : "RRF";
+    }
+
+    private Map<String, Object> fusionWeightsTrace() {
+        Map<String, Object> weights = new LinkedHashMap<>();
+        weights.put("keyword", tuningProperties.getKeywordWeight());
+        weights.put("fts", tuningProperties.getFtsWeight());
+        weights.put("vector", tuningProperties.getVectorWeight());
+        return weights;
     }
 
     private double score(Set<String> queryTokens, String content) {

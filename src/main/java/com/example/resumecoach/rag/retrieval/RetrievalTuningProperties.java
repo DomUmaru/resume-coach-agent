@@ -9,10 +9,46 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.rag.retrieval")
 public class RetrievalTuningProperties {
 
+    private String fusionStrategy = "RRF";
+    private double keywordWeight = 0.30d;
+    private double ftsWeight = 0.35d;
+    private double vectorWeight = 0.35d;
     private int minTopK = 3;
     private int maxTopK = 8;
     private int defaultTopK = 4;
     private double vectorMinScore = 0.25d;
+
+    public String getFusionStrategy() {
+        return fusionStrategy;
+    }
+
+    public void setFusionStrategy(String fusionStrategy) {
+        this.fusionStrategy = fusionStrategy;
+    }
+
+    public double getKeywordWeight() {
+        return keywordWeight;
+    }
+
+    public void setKeywordWeight(double keywordWeight) {
+        this.keywordWeight = keywordWeight;
+    }
+
+    public double getFtsWeight() {
+        return ftsWeight;
+    }
+
+    public void setFtsWeight(double ftsWeight) {
+        this.ftsWeight = ftsWeight;
+    }
+
+    public double getVectorWeight() {
+        return vectorWeight;
+    }
+
+    public void setVectorWeight(double vectorWeight) {
+        this.vectorWeight = vectorWeight;
+    }
 
     public int getMinTopK() {
         return minTopK;
@@ -46,4 +82,3 @@ public class RetrievalTuningProperties {
         this.vectorMinScore = vectorMinScore;
     }
 }
-
