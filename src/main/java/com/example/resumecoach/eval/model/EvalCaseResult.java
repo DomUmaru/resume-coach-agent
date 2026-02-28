@@ -15,8 +15,10 @@ public class EvalCaseResult {
     private String query;
     private int retrievedCount;
     private int relevantCount;
+    private int totalRelevantCount;
     private double hitAtK;
+    private double recallAtK;
+    private double ndcgAtK;
     private double reciprocalRank;
     private double citationPrecision;
 }
-

@@ -34,6 +34,12 @@ public class EvalReportEntity {
     @Column(name = "avg_hit_at_k", nullable = false)
     private Double avgHitAtK;
 
+    @Column(name = "avg_recall_at_k", nullable = false)
+    private Double avgRecallAtK;
+
+    @Column(name = "avg_ndcg_at_k", nullable = false)
+    private Double avgNdcgAtK;
+
     @Column(name = "avg_mrr", nullable = false)
     private Double avgMrr;
 

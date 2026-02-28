@@ -20,6 +20,8 @@ public class EvalCompareResponse {
     @Data
     public static class MetricDelta {
         private double hitAtKDelta;
+        private double recallAtKDelta;
+        private double ndcgAtKDelta;
         private double mrrDelta;
         private double citationPrecisionDelta;
     }

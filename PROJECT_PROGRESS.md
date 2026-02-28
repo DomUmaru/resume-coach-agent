@@ -88,6 +88,7 @@
 25. 已完成 Context Compression / Token Budget：对 parent 上下文按 query 命中句进行压缩，并通过字符预算控制最终传给生成模型的上下文规模。
 26. 已完成 Metadata Filter：支持按 section/page/chunkType 限定检索范围，并在追踪日志中记录过滤条件。
 27. 已完成 Fusion Strategy 可切换：Hybrid Retrieval 支持 RRF / WEIGHTED 两种融合策略，并支持 keyword/fts/vector 权重配置。
+28. 已完成 Eval 指标增强：离线评测新增 Recall@K、nDCG@K 指标，报告落库与对比接口同步扩展。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -140,3 +141,4 @@
 18. 2026-02-28：完成 Context Compression / Token Budget：新增上下文压缩服务，按 query 相关句抽取并通过字符预算控制最终上下文大小。
 19. 2026-02-28：完成 Metadata Filter：请求选项新增 section/page/chunkType 过滤条件，检索链路三路召回统一按过滤条件收口。
 20. 2026-02-28：完成 Fusion Strategy 可切换：Hybrid Retrieval 新增 RRF / WEIGHTED 两种融合策略，支持 keyword/fts/vector 权重配置并写入 trace。
+21. 2026-02-28：完成 Eval 指标增强：离线评测新增 Recall@K、nDCG@K，评测报告实体、汇总响应、对比结论与策略快照同步扩展。

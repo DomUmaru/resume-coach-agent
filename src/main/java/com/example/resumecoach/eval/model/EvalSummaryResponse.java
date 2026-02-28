@@ -12,8 +12,9 @@ import java.util.List;
 public class EvalSummaryResponse {
     private int totalCases;
     private double avgHitAtK;
+    private double avgRecallAtK;
+    private double avgNdcgAtK;
     private double avgMRR;
     private double avgCitationPrecision;
     private List<EvalCaseResult> caseResults = new ArrayList<>();
 }
-

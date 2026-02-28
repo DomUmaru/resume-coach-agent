@@ -16,6 +16,8 @@ public class EvalReportItem {
     private String strategyVersion;
     private int totalCases;
     private double avgHitAtK;
+    private double avgRecallAtK;
+    private double avgNdcgAtK;
     private double avgMRR;
     private double avgCitationPrecision;
     private String createdAt;

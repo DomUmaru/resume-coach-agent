@@ -41,6 +41,10 @@ public class EvalStrategySnapshotService {
         snapshot.put("retrieval.maxTopK", retrieval.getMaxTopK());
         snapshot.put("retrieval.defaultTopK", retrieval.getDefaultTopK());
         snapshot.put("retrieval.vectorMinScore", retrieval.getVectorMinScore());
+        snapshot.put("retrieval.fusionStrategy", retrieval.getFusionStrategy());
+        snapshot.put("retrieval.keywordWeight", retrieval.getKeywordWeight());
+        snapshot.put("retrieval.ftsWeight", retrieval.getFtsWeight());
+        snapshot.put("retrieval.vectorWeight", retrieval.getVectorWeight());
         snapshot.put("guardrail.enabled", guardrail.isEnabled());
         snapshot.put("guardrail.minEvidenceOverlap", guardrail.getMinEvidenceOverlap());
         snapshot.put("guardrail.noEvidenceRefuse", guardrail.isNoEvidenceRefuse());
@@ -78,4 +82,3 @@ public class EvalStrategySnapshotService {
     public record StrategySnapshot(String version, String json) {
     }
 }
-

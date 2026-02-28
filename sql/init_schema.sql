@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS eval_report (
     doc_id VARCHAR(64) NOT NULL,
     total_cases INT NOT NULL,
     avg_hit_at_k DOUBLE PRECISION NOT NULL,
+    avg_recall_at_k DOUBLE PRECISION NOT NULL,
+    avg_ndcg_at_k DOUBLE PRECISION NOT NULL,
     avg_mrr DOUBLE PRECISION NOT NULL,
     avg_citation_precision DOUBLE PRECISION NOT NULL,
     strategy_version VARCHAR(64) NOT NULL,
