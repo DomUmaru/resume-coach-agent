@@ -5,6 +5,7 @@ import com.example.resumecoach.ai.service.LlmService;
 import com.example.resumecoach.rag.context.Citation;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,10 +21,16 @@ public class ResumeQaTool {
         this.llmService = llmService;
     }
 
-    public ToolCallResult run(String question, String docId, String retrievedEvidence) {
+    public ToolCallResult run(String question,
+                              String docId,
+                              String retrievedEvidence,
+                              List<Citation> supportingCitations) {
         String fallback = "你在项目中主要负责召回策略优化、特征工程迭代，以及线上效果监控与回归分析。";
         String content = llmService.generateQaAnswer(question, retrievedEvidence, fallback);
-        Citation citation = new Citation("chunk_103", docId, 2, "WORK", 0.84d);
-        return new ToolCallResult("resume_qa_tool", content, List.of(citation));
+        List<Citation> citations = supportingCitations == null ? new ArrayList<>() : new ArrayList<>(supportingCitations);
+        if (citations.isEmpty()) {
+            citations.add(new Citation("chunk_103", docId, 2, "WORK", 0.84d));
+        }
+        return new ToolCallResult("resume_qa_tool", content, citations);
     }
 }

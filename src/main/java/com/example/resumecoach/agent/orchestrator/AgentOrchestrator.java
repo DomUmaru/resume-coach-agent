@@ -124,10 +124,12 @@ public class AgentOrchestrator {
             toolContent = rewrite.getContent();
             mergedCitations.addAll(rewrite.getCitations());
         } else if (ToolNames.RESUME_QA.equals(selectedTool)) {
-            String question = stringArg(selectedToolArguments, "question", request.getMessage());
-            ToolCallResult qa = resumeQaTool.run(question, request.getDocId(), retrievalEvidence);
+            QaExecution qaExecution = runSelectedQa(request, selectedToolArguments, retrievalEvidence, retrievalTrace, mergedCitations);
+            ToolCallResult qa = qaExecution.result();
+            retrievalEvidence = qaExecution.retrievalEvidence();
+            retrievalEnd = qaExecution.retrievalEnd();
+            mergedCitations = new ArrayList<>(qa.getCitations());
             toolContent = qa.getContent();
-            mergedCitations.addAll(qa.getCitations());
         } else if (ToolNames.RETRIEVE.equals(selectedTool)) {
             RetrieveResumeContextTool.RetrievalExecution retrievalExec = runSelectedRetrieve(request, selectedToolArguments);
             ToolCallResult retrieval = retrievalExec.result();
@@ -147,9 +149,9 @@ public class AgentOrchestrator {
             selectedToolConfidence = Math.max(selectedToolConfidence, 0.7d);
             selectedToolReason = "intent-fallback";
         } else if ("QA".equals(intent) || "MOCK_INTERVIEW".equals(intent)) {
-            ToolCallResult qa = resumeQaTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
+            ToolCallResult qa = resumeQaTool.run(request.getMessage(), request.getDocId(), retrievalEvidence, mergedCitations);
             toolContent = qa.getContent();
-            mergedCitations.addAll(qa.getCitations());
+            mergedCitations = new ArrayList<>(qa.getCitations());
             selectedTool = ToolNames.RESUME_QA;
             selectedToolArguments = new LinkedHashMap<>();
             selectedToolArguments.put("question", request.getMessage());
@@ -208,11 +210,48 @@ public class AgentOrchestrator {
         return retrieveResumeContextTool.runWithTrace(query, request.getDocId(), mergedOptions);
     }
 
+    private QaExecution runSelectedQa(ChatStreamRequest request,
+                                      Map<String, Object> selectedToolArguments,
+                                      String retrievalEvidence,
+                                      Map<String, Object> retrievalTrace,
+                                      List<Citation> mergedCitations) {
+        String question = stringArg(selectedToolArguments, "question", request.getMessage());
+        String focusSection = stringArg(selectedToolArguments, "focusSection", "");
+        List<Citation> citations = new ArrayList<>(mergedCitations);
+        long retrievalEnd = System.currentTimeMillis();
+
+        if (!focusSection.isBlank()) {
+            Map<String, Object> scopedArguments = new LinkedHashMap<>();
+            scopedArguments.put("query", question);
+            scopedArguments.put("section", focusSection);
+            RetrieveResumeContextTool.RetrievalExecution scopedRetrieval = runSelectedRetrieve(request, scopedArguments);
+            retrievalTrace.putAll(scopedRetrieval.trace());
+            retrievalTrace.put("toolArgumentOverride", buildQaOverrideTrace(question, focusSection));
+            retrievalEvidence = scopedRetrieval.result().getContent();
+            citations = new ArrayList<>(scopedRetrieval.result().getCitations());
+            retrievalEnd = System.currentTimeMillis();
+        }
+
+        ToolCallResult qa = resumeQaTool.run(question, request.getDocId(), retrievalEvidence, citations);
+        return new QaExecution(qa, retrievalEvidence, retrievalEnd);
+    }
+
     private Map<String, Object> buildRetrieveOverrideTrace(ChatStreamRequest request,
                                                            Map<String, Object> selectedToolArguments) {
         Map<String, Object> trace = new LinkedHashMap<>();
         trace.put("query", stringArg(selectedToolArguments, "query", request.getMessage()));
         trace.put("filter", filterToTrace(mergeFilter(request.getOptions(), selectedToolArguments)));
+        return trace;
+    }
+
+    private Map<String, Object> buildQaOverrideTrace(String question, String focusSection) {
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("query", question);
+        Map<String, Object> filter = new LinkedHashMap<>();
+        filter.put("section", focusSection);
+        filter.put("page", null);
+        filter.put("chunkType", "");
+        trace.put("filter", filter);
         return trace;
     }
 
@@ -382,5 +421,8 @@ public class AgentOrchestrator {
         public Map<String, Object> getLatency() {
             return latency;
         }
+    }
+
+    private record QaExecution(ToolCallResult result, String retrievalEvidence, long retrievalEnd) {
     }
 }
