@@ -54,6 +54,7 @@ public class ChatStreamService {
                 toolPayload.put("shouldRetrieve", result.getDecision().isShouldRetrieve());
                 toolPayload.put("selectedTool", result.getSelectedTool());
                 toolPayload.put("selectedToolArguments", result.getSelectedToolArguments());
+                toolPayload.put("selectedToolArgumentValidation", result.getSelectedToolArgumentValidation());
                 toolPayload.put("selectedToolConfidence", result.getSelectedToolConfidence());
                 toolPayload.put("selectedToolReason", result.getSelectedToolReason());
                 sendEvent(emitter, "tool_call", toolPayload);

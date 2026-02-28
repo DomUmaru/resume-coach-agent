@@ -73,6 +73,7 @@ public class AgentOrchestrator {
         String toolContent = "";
         String selectedTool = ToolNames.NONE;
         Map<String, Object> selectedToolArguments = new LinkedHashMap<>();
+        Map<String, Object> selectedToolArgumentValidation = new LinkedHashMap<>();
         double selectedToolConfidence = 0.0d;
         String selectedToolReason = "none";
         Map<String, Object> retrievalTrace = new LinkedHashMap<>();
@@ -98,6 +99,7 @@ public class AgentOrchestrator {
                         List.of(),
                         ToolNames.RETRIEVE,
                         Map.of(),
+                        Map.of(),
                         1.0d,
                         "retrieval-empty",
                         retrievalTrace,
@@ -115,6 +117,7 @@ public class AgentOrchestrator {
         ToolSelectionDecision toolDecision = llmService.chooseTool(intent, request.getMessage(), decision.isShouldRetrieve());
         selectedTool = toolDecision.getToolName();
         selectedToolArguments.putAll(toolDecision.getArguments());
+        selectedToolArgumentValidation.putAll(toolDecision.getArgumentValidation());
         selectedToolConfidence = toolDecision.getConfidence();
         selectedToolReason = toolDecision.getReason();
 
@@ -146,6 +149,7 @@ public class AgentOrchestrator {
             selectedTool = ToolNames.STAR_REWRITE;
             selectedToolArguments = new LinkedHashMap<>();
             selectedToolArguments.put("rawText", request.getMessage());
+            selectedToolArgumentValidation = fallbackArgumentValidation(selectedTool, selectedToolArguments, "intent-fallback");
             selectedToolConfidence = Math.max(selectedToolConfidence, 0.7d);
             selectedToolReason = "intent-fallback";
         } else if ("QA".equals(intent) || "MOCK_INTERVIEW".equals(intent)) {
@@ -155,6 +159,7 @@ public class AgentOrchestrator {
             selectedTool = ToolNames.RESUME_QA;
             selectedToolArguments = new LinkedHashMap<>();
             selectedToolArguments.put("question", request.getMessage());
+            selectedToolArgumentValidation = fallbackArgumentValidation(selectedTool, selectedToolArguments, "intent-fallback");
             selectedToolConfidence = Math.max(selectedToolConfidence, 0.7d);
             selectedToolReason = "intent-fallback";
         }
@@ -175,6 +180,7 @@ public class AgentOrchestrator {
                     mergedCitations,
                     selectedTool,
                     selectedToolArguments,
+                    selectedToolArgumentValidation,
                     selectedToolConfidence,
                     selectedToolReason,
                     retrievalTrace,
@@ -188,6 +194,7 @@ public class AgentOrchestrator {
                 mergedCitations,
                 selectedTool,
                 selectedToolArguments,
+                selectedToolArgumentValidation,
                 selectedToolConfidence,
                 selectedToolReason,
                 retrievalTrace,
@@ -307,6 +314,23 @@ public class AgentOrchestrator {
         return trace;
     }
 
+    private Map<String, Object> fallbackArgumentValidation(String toolName,
+                                                           Map<String, Object> arguments,
+                                                           String source) {
+        Map<String, Object> validation = new LinkedHashMap<>();
+        validation.put("source", source);
+        validation.put("toolName", toolName);
+        validation.put("rawArguments", new LinkedHashMap<>(arguments));
+        validation.put("normalizedArguments", new LinkedHashMap<>(arguments));
+        validation.put("rawArgumentCount", arguments.size());
+        validation.put("normalizedArgumentCount", arguments.size());
+        validation.put("usedFallbackArguments", false);
+        validation.put("droppedKeys", List.of());
+        validation.put("hasDroppedKeys", false);
+        validation.put("valid", true);
+        return validation;
+    }
+
     private boolean hasFilterValue(ChatStreamRequest.Filter filter) {
         return filter != null
                 && (filter.getSection() != null || filter.getPage() != null || filter.getChunkType() != null);
@@ -354,6 +378,7 @@ public class AgentOrchestrator {
         private final List<Citation> citations;
         private final String selectedTool;
         private final Map<String, Object> selectedToolArguments;
+        private final Map<String, Object> selectedToolArgumentValidation;
         private final double selectedToolConfidence;
         private final String selectedToolReason;
         private final Map<String, Object> retrievalTrace;
@@ -365,6 +390,7 @@ public class AgentOrchestrator {
                            List<Citation> citations,
                            String selectedTool,
                            Map<String, Object> selectedToolArguments,
+                           Map<String, Object> selectedToolArgumentValidation,
                            double selectedToolConfidence,
                            String selectedToolReason,
                            Map<String, Object> retrievalTrace,
@@ -375,6 +401,7 @@ public class AgentOrchestrator {
             this.citations = citations;
             this.selectedTool = selectedTool;
             this.selectedToolArguments = selectedToolArguments;
+            this.selectedToolArgumentValidation = selectedToolArgumentValidation;
             this.selectedToolConfidence = selectedToolConfidence;
             this.selectedToolReason = selectedToolReason;
             this.retrievalTrace = retrievalTrace;
@@ -400,6 +427,10 @@ public class AgentOrchestrator {
 
         public Map<String, Object> getSelectedToolArguments() {
             return selectedToolArguments;
+        }
+
+        public Map<String, Object> getSelectedToolArgumentValidation() {
+            return selectedToolArgumentValidation;
         }
 
         public double getSelectedToolConfidence() {

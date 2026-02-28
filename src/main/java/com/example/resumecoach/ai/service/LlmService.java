@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -87,6 +88,7 @@ public class LlmService {
         ToolSelectionDecision fallback = new ToolSelectionDecision(
                 fallbackTool,
                 defaultArguments(fallbackTool, userMessage),
+                buildArgumentValidation(fallbackTool, Map.of(), defaultArguments(fallbackTool, userMessage), "rule-fallback"),
                 0.6d,
                 "rule-fallback");
         if (!isAvailable()) {
@@ -156,20 +158,28 @@ public class LlmService {
         try {
             JsonNode root = objectMapper.readTree(raw);
             String tool = normalizeToolName(root.path("toolName").asText(), fallback.getToolName());
+            Map<String, Object> rawArguments = objectMapper.convertValue(root.path("arguments"), new TypeReference<>() {
+            });
             Map<String, Object> arguments = sanitizeArguments(
                     tool,
-                    objectMapper.convertValue(root.path("arguments"), new TypeReference<>() {
-                    }),
+                    rawArguments,
                     fallback.getArguments());
+            Map<String, Object> argumentValidation =
+                    buildArgumentValidation(tool, rawArguments, arguments, "model");
             double confidence = root.path("confidence").asDouble(fallback.getConfidence());
             String reason = root.path("reason").asText("model-selection");
             if (confidence < 0.0d || confidence > 1.0d) {
                 confidence = fallback.getConfidence();
             }
-            return new ToolSelectionDecision(tool, arguments, confidence, reason);
+            return new ToolSelectionDecision(tool, arguments, argumentValidation, confidence, reason);
         } catch (Exception ignored) {
             String tool = normalizeToolName(raw, fallback.getToolName());
-            return new ToolSelectionDecision(tool, fallback.getArguments(), fallback.getConfidence(), "parse-fallback");
+            return new ToolSelectionDecision(
+                    tool,
+                    fallback.getArguments(),
+                    buildArgumentValidation(tool, Map.of(), fallback.getArguments(), "parse-fallback"),
+                    fallback.getConfidence(),
+                    "parse-fallback");
         }
     }
 
@@ -221,6 +231,31 @@ public class LlmService {
             result.putAll(fallbackArguments);
         }
         return result;
+    }
+
+    private Map<String, Object> buildArgumentValidation(String toolName,
+                                                        Map<String, Object> rawArguments,
+                                                        Map<String, Object> normalizedArguments,
+                                                        String source) {
+        Map<String, Object> validation = new LinkedHashMap<>();
+        Map<String, Object> raw = rawArguments == null ? Map.of() : rawArguments;
+        Map<String, Object> normalized = normalizedArguments == null ? Map.of() : normalizedArguments;
+
+        validation.put("source", source);
+        validation.put("toolName", toolName);
+        validation.put("rawArguments", raw);
+        validation.put("normalizedArguments", normalized);
+        validation.put("rawArgumentCount", raw.size());
+        validation.put("normalizedArgumentCount", normalized.size());
+        validation.put("usedFallbackArguments", !raw.isEmpty() && normalized.isEmpty());
+
+        List<String> droppedKeys = raw.keySet().stream()
+                .filter(key -> !normalized.containsKey(key))
+                .toList();
+        validation.put("droppedKeys", droppedKeys);
+        validation.put("hasDroppedKeys", !droppedKeys.isEmpty());
+        validation.put("valid", droppedKeys.isEmpty() || !normalized.isEmpty());
+        return validation;
     }
 
     private void putIfPresent(Map<String, Object> map, String key, Object value) {

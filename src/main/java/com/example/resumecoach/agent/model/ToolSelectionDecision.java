@@ -17,6 +17,7 @@ import java.util.Map;
 public class ToolSelectionDecision {
     private String toolName;
     private Map<String, Object> arguments = new LinkedHashMap<>();
+    private Map<String, Object> argumentValidation = new LinkedHashMap<>();
     private double confidence;
     private String reason;
 }
