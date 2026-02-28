@@ -21,6 +21,7 @@
 3. 全局异常处理与统一错误码。
 4. 请求 `traceId` 自动注入与透传。
 5. Lombok 规范落地（DTO/VO 使用，实体避免 `@Data`）。
+6. 已新增关键链路单元测试：覆盖 `AgentOrchestrator` 的工具参数执行链路与 `RagTraceLogService.summaryBySession` 聚合逻辑。
 
 ### 3.2 数据库与持久化
 1. PostgreSQL + JPA 接入。
@@ -154,3 +155,4 @@
 25. 2026-02-28：完成 Tool / Function Calling 工程化第三步：`resume_qa_tool` 的 `focusSection` 参数正式接入执行链路，问答阶段支持按 section 聚焦证据，并去除 QA 工具硬编码 citation 的主路径依赖。
 26. 2026-02-28：完成 Tool / Function Calling 工程化第四步：`star_rewrite_tool` 复用真实检索 citations 作为改写证据，去除 STAR 工具硬编码 citation 的主路径依赖。
 27. 2026-02-28：完成 Tool / Function Calling 工程化第五步：工具参数校验与归一化结果接入 SSE 与 trace 日志，支持追踪 rawArguments、normalizedArguments、droppedKeys 与 valid 状态。
+28. 2026-02-28：补充关键链路单元测试，覆盖 `retrieve/qa` 工具参数执行与 `Trace Summary` 聚合回归保护。
