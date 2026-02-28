@@ -64,14 +64,17 @@ public class RetrieveResumeContextTool {
     }
 
     public RetrievalExecution runWithTrace(String query, String docId, ChatStreamRequest.Options options) {
-        List<ResumeChunkEntity> childChunks =
-                resumeChunkRepository.findByDocIdAndChunkTypeOrderBySourcePageAsc(docId, ChunkType.CHILD);
+        ChatStreamRequest.Filter filter = options == null ? null : options.getFilter();
+        List<ResumeChunkEntity> childChunks = applyFilter(
+                resumeChunkRepository.findByDocIdAndChunkTypeOrderBySourcePageAsc(docId, ChunkType.CHILD),
+                filter);
         if (childChunks.isEmpty()) {
             Map<String, Object> trace = new LinkedHashMap<>();
             trace.put("rawQuery", query);
             trace.put("rewrittenQuery", query);
             trace.put("multiQueries", List.of());
             trace.put("candidateCount", 0);
+            trace.put("filter", filterTrace(filter));
             return new RetrievalExecution(
                     new ToolCallResult(ToolNames.RETRIEVE, "未检索到相关简历证据。", List.of()),
                     trace);
@@ -108,7 +111,9 @@ public class RetrieveResumeContextTool {
                     .toList();
             keywordTotal += keywordTop.size();
 
-            List<ResumeChunkEntity> ftsTop = resumeChunkRepository.searchByFts(docId, q, dynamicTopK + 2);
+            List<ResumeChunkEntity> ftsTop = applyFilter(
+                    resumeChunkRepository.searchByFts(docId, q, dynamicTopK + 2),
+                    filter);
             ftsTotal += ftsTop.size();
 
             List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(childChunks, q, dynamicTopK + 2) : List.of();
@@ -154,6 +159,7 @@ public class RetrieveResumeContextTool {
         trace.put("rawQuery", query);
         trace.put("rewrittenQuery", rewritten);
         trace.put("multiQueries", queries);
+        trace.put("filter", filterTrace(filter));
         trace.put("dynamicTopK", dynamicTopK);
         trace.put("keywordCandidates", keywordTotal);
         trace.put("ftsCandidates", ftsTotal);
@@ -196,6 +202,31 @@ public class RetrieveResumeContextTool {
                     .limit(topN)
                     .toList();
         }
+    }
+
+    private List<ResumeChunkEntity> applyFilter(List<ResumeChunkEntity> chunks, ChatStreamRequest.Filter filter) {
+        if (chunks == null || chunks.isEmpty()) {
+            return List.of();
+        }
+        if (filter == null) {
+            return chunks;
+        }
+        return chunks.stream()
+                .filter(chunk -> filter.getSection() == null || filter.getSection() == chunk.getSection())
+                .filter(chunk -> filter.getPage() == null || filter.getPage().equals(chunk.getSourcePage()))
+                .filter(chunk -> filter.getChunkType() == null || filter.getChunkType() == chunk.getChunkType())
+                .toList();
+    }
+
+    private Map<String, Object> filterTrace(ChatStreamRequest.Filter filter) {
+        if (filter == null) {
+            return Map.of();
+        }
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("section", filter.getSection() == null ? "" : filter.getSection().name());
+        map.put("page", filter.getPage());
+        map.put("chunkType", filter.getChunkType() == null ? "" : filter.getChunkType().name());
+        return map;
     }
 
     private Map<String, ResumeChunkEntity> loadParentChunkMap(List<ResumeChunkEntity> chunks) {
