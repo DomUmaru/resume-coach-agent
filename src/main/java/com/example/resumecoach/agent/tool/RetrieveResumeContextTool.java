@@ -6,6 +6,7 @@ import com.example.resumecoach.rag.context.Citation;
 import com.example.resumecoach.rag.embedding.EmbeddingService;
 import com.example.resumecoach.rag.query.MultiQueryService;
 import com.example.resumecoach.rag.query.QueryRewriteService;
+import com.example.resumecoach.rag.ranking.MmrService;
 import com.example.resumecoach.rag.ranking.RerankService;
 import com.example.resumecoach.rag.retrieval.RetrievalTuningProperties;
 import com.example.resumecoach.resume.model.entity.ResumeChunkEntity;
@@ -34,6 +35,7 @@ public class RetrieveResumeContextTool {
     private final QueryRewriteService queryRewriteService;
     private final MultiQueryService multiQueryService;
     private final RerankService rerankService;
+    private final MmrService mmrService;
     private final EmbeddingService embeddingService;
     private final RetrievalTuningProperties tuningProperties;
 
@@ -41,12 +43,14 @@ public class RetrieveResumeContextTool {
                                      QueryRewriteService queryRewriteService,
                                      MultiQueryService multiQueryService,
                                      RerankService rerankService,
+                                     MmrService mmrService,
                                      EmbeddingService embeddingService,
                                      RetrievalTuningProperties tuningProperties) {
         this.resumeChunkRepository = resumeChunkRepository;
         this.queryRewriteService = queryRewriteService;
         this.multiQueryService = multiQueryService;
         this.rerankService = rerankService;
+        this.mmrService = mmrService;
         this.embeddingService = embeddingService;
         this.tuningProperties = tuningProperties;
     }
@@ -118,9 +122,10 @@ public class RetrieveResumeContextTool {
                 .limit(dynamicTopK + 4L)
                 .toList();
 
-        List<ResumeChunkEntity> topChunks = enableRerank
+        List<ResumeChunkEntity> rerankedChunks = enableRerank
                 ? rerankService.rerank(fused, mergedTokens, dynamicTopK)
                 : fused.stream().limit(dynamicTopK).toList();
+        List<ResumeChunkEntity> topChunks = mmrService.diversify(rerankedChunks, mergedTokens, dynamicTopK);
 
         Map<String, ResumeChunkEntity> parentChunkMap = loadParentChunkMap(topChunks);
         String merged = topChunks.stream()
@@ -148,6 +153,8 @@ public class RetrieveResumeContextTool {
         trace.put("vectorCandidates", vectorTotal);
         trace.put("candidateCount", candidates.size());
         trace.put("fusedCount", fused.size());
+        trace.put("rerankedCount", rerankedChunks.size());
+        trace.put("mmrCount", topChunks.size());
         trace.put("finalCount", topChunks.size());
         trace.put("finalChunkIds", topChunks.stream().map(ResumeChunkEntity::getId).toList());
         trace.put("finalParentChunkIds", topChunks.stream()
