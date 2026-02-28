@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Coach Agent Console</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="shell">
+    <header class="hero">
+        <div>
+            <p class="eyebrow">Resume Coach Agent</p>
+            <h1>Demo Console</h1>
+            <p class="hero-copy">
+                一个直接驱动上传、对话、RAG 追踪和离线评测的展示面板。
+            </p>
+        </div>
+        <div class="hero-badge">
+            <span>Spring Boot</span>
+            <span>RAG</span>
+            <span>Tool Calling</span>
+            <span>Eval</span>
+        </div>
+    </header>
+
+    <main class="grid">
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Session</h2>
+                <button id="seed-session" class="ghost-btn" type="button">生成默认值</button>
+            </div>
+            <div class="form-grid compact">
+                <label>
+                    <span>User ID</span>
+                    <input id="user-id" type="text" placeholder="user_demo">
+                </label>
+                <label>
+                    <span>Session ID</span>
+                    <input id="session-id" type="text" placeholder="session_demo">
+                </label>
+                <label>
+                    <span>Doc ID</span>
+                    <input id="doc-id" type="text" placeholder="上传后自动填充">
+                </label>
+                <label>
+                    <span>Intent Hint</span>
+                    <select id="intent-hint">
+                        <option value="">自动识别</option>
+                        <option value="QA">QA</option>
+                        <option value="REWRITE">REWRITE</option>
+                        <option value="MOCK_INTERVIEW">MOCK_INTERVIEW</option>
+                        <option value="CHITCHAT">CHITCHAT</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Upload Resume</h2>
+                <span id="upload-status" class="status-pill">待上传</span>
+            </div>
+            <form id="upload-form" class="stack">
+                <label>
+                    <span>PDF File</span>
+                    <input id="resume-file" type="file" accept="application/pdf" required>
+                </label>
+                <label>
+                    <span>Document Name</span>
+                    <input id="doc-name" type="text" placeholder="我的简历 2026">
+                </label>
+                <button class="primary-btn" type="submit">上传并入库</button>
+            </form>
+            <pre id="upload-result" class="code-block"></pre>
+        </section>
+
+        <section class="panel panel-wide">
+            <div class="panel-head">
+                <h2>Chat + SSE</h2>
+                <div class="toggles">
+                    <label><input id="enable-rewrite" type="checkbox" checked> Rewrite</label>
+                    <label><input id="enable-multi" type="checkbox" checked> Multi-Query</label>
+                    <label><input id="enable-rerank" type="checkbox" checked> Rerank</label>
+                    <label><input id="enable-vector" type="checkbox" checked> Vector</label>
+                </div>
+            </div>
+            <div class="form-grid">
+                <label>
+                    <span>Message</span>
+                    <textarea id="message" rows="5" placeholder="比如：请根据我的项目经历，生成一段适合面试自我介绍的回答"></textarea>
+                </label>
+                <label>
+                    <span>Section Filter</span>
+                    <select id="filter-section">
+                        <option value="">不限</option>
+                        <option value="SUMMARY">SUMMARY</option>
+                        <option value="PROJECT">PROJECT</option>
+                        <option value="WORK">WORK</option>
+                        <option value="EDUCATION">EDUCATION</option>
+                        <option value="SKILL">SKILL</option>
+                        <option value="OTHER">OTHER</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Page Filter</span>
+                    <input id="filter-page" type="number" min="1" placeholder="1">
+                </label>
+                <label>
+                    <span>Chunk Type</span>
+                    <select id="filter-chunk">
+                        <option value="">不限</option>
+                        <option value="PARENT">PARENT</option>
+                        <option value="CHILD">CHILD</option>
+                        <option value="SUMMARY">SUMMARY</option>
+                    </select>
+                </label>
+            </div>
+            <div class="button-row">
+                <button id="send-chat" class="primary-btn" type="button">开始流式对话</button>
+                <button id="load-history" class="ghost-btn" type="button">加载历史消息</button>
+                <button id="load-summary" class="ghost-btn" type="button">刷新 Trace Summary</button>
+            </div>
+            <div class="chat-layout">
+                <div class="stream-pane">
+                    <div class="subhead">SSE Timeline</div>
+                    <div id="timeline" class="timeline"></div>
+                </div>
+                <div class="stream-pane">
+                    <div class="subhead">Assistant Answer</div>
+                    <article id="assistant-answer" class="answer-box"></article>
+                    <div class="subhead">Citations</div>
+                    <pre id="citations" class="code-block small"></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Tool Call</h2>
+                <span class="status-pill muted">实时展示</span>
+            </div>
+            <pre id="tool-call" class="code-block tall"></pre>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Trace Summary</h2>
+                <button id="load-traces" class="ghost-btn" type="button">查看 Trace 列表</button>
+            </div>
+            <pre id="trace-summary" class="code-block tall"></pre>
+        </section>
+
+        <section class="panel panel-wide">
+            <div class="panel-head">
+                <h2>Eval Console</h2>
+                <span class="status-pill muted">离线评测</span>
+            </div>
+            <div class="button-row">
+                <button id="run-eval" class="primary-btn" type="button">运行 Offline Eval</button>
+                <button id="load-reports" class="ghost-btn" type="button">刷新 Reports</button>
+                <button id="compare-reports" class="ghost-btn" type="button">Compare Selected</button>
+            </div>
+            <div class="reports-grid">
+                <div>
+                    <div class="subhead">Latest Reports</div>
+                    <div id="reports-list" class="report-list"></div>
+                </div>
+                <div>
+                    <div class="subhead">Eval Output</div>
+                    <pre id="eval-output" class="code-block tall"></pre>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<template id="timeline-item-template">
+    <div class="timeline-item">
+        <div class="timeline-event"></div>
+        <pre class="timeline-payload"></pre>
+    </div>
+</template>
+
+<script src="/app.js"></script>
+</body>
+</html>

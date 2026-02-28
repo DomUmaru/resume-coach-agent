@@ -110,6 +110,13 @@
 1. 接口：`GET /api/chat/history/{sessionId}`。
 2. 聊天消息与引用信息已落库并可回查。
 
+### 3.8 Demo 展示页
+1. 已新增静态 Demo Console 页面：`/index.html`。
+2. 页面已支持简历上传、流式聊天、citation 展示、tool_call 展示。
+3. 页面已支持 Trace Summary / Trace 列表查看。
+4. 页面已支持 Offline Eval 运行、报告列表加载与 Compare 触发。
+5. 页面直接调用当前 Spring Boot 接口，可替代大部分 Apifox 手工联调流程。
+
 ## 4. 当前待完成项（高优先）
 1. 向量检索（pgvector embedding 字段、向量索引、向量查询）。
 2. 真正的 Hybrid Retrieval（向量 + FTS 权重融合可配置）。
@@ -158,3 +165,5 @@
 28. 2026-02-28：补充关键链路单元测试，覆盖 `retrieve/qa` 工具参数执行与 `Trace Summary` 聚合回归保护。
 29. 2026-02-28：补充接口层回归测试，覆盖 `TraceController` 查询接口与 `ChatController` 的 history/stream 基本契约。
 30. 2026-02-28：补充评测链路回归测试，覆盖 `OfflineEvalService` 指标计算/报告对比 与 `EvalController` 的离线评测接口契约。
+31. 2026-02-28：新增静态 Demo Console 展示页，整合上传、聊天、Trace、Eval 四类核心交互，支持直接在页面完成主要演示与联调。
+32. 2026-02-28：修复简历上传链路的 `resume_document.created_at` 空值问题，并补充 `ResumeIngestionService` 时间戳回归测试。

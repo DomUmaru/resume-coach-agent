@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -55,6 +56,7 @@ public class ResumeIngestionService {
         document.setDocName(resolveDocName(file, docName));
         document.setFilePath(file.getOriginalFilename());
         document.setStatus(DocumentStatus.PROCESSING);
+        initializeDocumentTimestamps(document);
         resumeDocumentRepository.save(document);
 
         try {
@@ -69,10 +71,12 @@ public class ResumeIngestionService {
             resumeChunkRepository.deleteByDocId(docId);
             resumeChunkRepository.saveAll(chunks);
             document.setStatus(DocumentStatus.COMPLETED);
+            touchUpdatedAt(document);
             resumeDocumentRepository.save(document);
             return new UploadResumeResponse(docId, DocumentStatus.COMPLETED.name());
         } catch (Exception ex) {
             document.setStatus(DocumentStatus.FAILED);
+            touchUpdatedAt(document);
             resumeDocumentRepository.save(document);
             throw ex;
         }
@@ -97,5 +101,20 @@ public class ResumeIngestionService {
             return docName;
         }
         return file.getOriginalFilename() == null ? "resume.pdf" : file.getOriginalFilename();
+    }
+
+    private void initializeDocumentTimestamps(ResumeDocumentEntity document) {
+        LocalDateTime now = LocalDateTime.now();
+        if (document.getCreatedAt() == null) {
+            document.setCreatedAt(now);
+        }
+        document.setUpdatedAt(now);
+    }
+
+    private void touchUpdatedAt(ResumeDocumentEntity document) {
+        if (document.getCreatedAt() == null) {
+            document.setCreatedAt(LocalDateTime.now());
+        }
+        document.setUpdatedAt(LocalDateTime.now());
     }
 }
