@@ -93,6 +93,7 @@
 30. 已完成 Tool / Function Calling 工程化第一步：新增 Tool Registry、工具 schema 描述与结构化 tool arguments 决策，SSE 与追踪日志可展示工具参数。
 31. 已完成 Tool / Function Calling 工程化第二步：`retrieve_resume_context_tool` 的 `query/section/page/chunkType` 参数已真正接入执行链路，工具选择结果可直接驱动检索重跑与过滤收口。
 32. 已完成 Tool / Function Calling 工程化第三步：`resume_qa_tool` 的 `focusSection` 参数已真正接入执行链路，可按指定 section 重跑 scoped retrieval，并复用真实检索 citations 作为问答证据。
+33. 已完成 Tool / Function Calling 工程化第四步：`star_rewrite_tool` 已复用真实检索 citations 作为改写证据，移除 STAR 工具主路径对硬编码 citation 的依赖。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -150,3 +151,4 @@
 23. 2026-02-28：完成 Tool / Function Calling 工程化第一步：新增 Tool Registry 与工具 schema 描述，工具选择决策升级为 toolName + arguments，编排器与 SSE 透传工具参数。
 24. 2026-02-28：完成 Tool / Function Calling 工程化第二步：`retrieve_resume_context_tool` 参数正式接入执行链路，工具 arguments 可实际控制 query 与检索过滤条件，并写入 trace。
 25. 2026-02-28：完成 Tool / Function Calling 工程化第三步：`resume_qa_tool` 的 `focusSection` 参数正式接入执行链路，问答阶段支持按 section 聚焦证据，并去除 QA 工具硬编码 citation 的主路径依赖。
+26. 2026-02-28：完成 Tool / Function Calling 工程化第四步：`star_rewrite_tool` 复用真实检索 citations 作为改写证据，去除 STAR 工具硬编码 citation 的主路径依赖。

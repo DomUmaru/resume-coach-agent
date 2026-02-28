@@ -120,9 +120,9 @@ public class AgentOrchestrator {
 
         if (ToolNames.STAR_REWRITE.equals(selectedTool)) {
             String rawText = stringArg(selectedToolArguments, "rawText", request.getMessage());
-            ToolCallResult rewrite = starRewriteTool.run(rawText, request.getDocId(), retrievalEvidence);
+            ToolCallResult rewrite = starRewriteTool.run(rawText, request.getDocId(), retrievalEvidence, mergedCitations);
             toolContent = rewrite.getContent();
-            mergedCitations.addAll(rewrite.getCitations());
+            mergedCitations = new ArrayList<>(rewrite.getCitations());
         } else if (ToolNames.RESUME_QA.equals(selectedTool)) {
             QaExecution qaExecution = runSelectedQa(request, selectedToolArguments, retrievalEvidence, retrievalTrace, mergedCitations);
             ToolCallResult qa = qaExecution.result();
@@ -140,9 +140,9 @@ public class AgentOrchestrator {
             toolContent = retrievalEvidence;
             retrievalEnd = System.currentTimeMillis();
         } else if ("REWRITE".equals(intent)) {
-            ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
+            ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence, mergedCitations);
             toolContent = rewrite.getContent();
-            mergedCitations.addAll(rewrite.getCitations());
+            mergedCitations = new ArrayList<>(rewrite.getCitations());
             selectedTool = ToolNames.STAR_REWRITE;
             selectedToolArguments = new LinkedHashMap<>();
             selectedToolArguments.put("rawText", request.getMessage());
