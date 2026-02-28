@@ -1,6 +1,7 @@
 package com.example.resumecoach.resume.repository;
 
 import com.example.resumecoach.resume.model.entity.ResumeChunkEntity;
+import com.example.resumecoach.resume.model.enumtype.ChunkType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,10 @@ public interface ResumeChunkRepository extends JpaRepository<ResumeChunkEntity, 
 
     List<ResumeChunkEntity> findByDocIdOrderBySourcePageAsc(String docId);
 
+    List<ResumeChunkEntity> findByDocIdAndChunkTypeOrderBySourcePageAsc(String docId, ChunkType chunkType);
+
+    List<ResumeChunkEntity> findByParentIdIn(List<String> parentIds);
+
     void deleteByDocId(String docId);
 
     /**
@@ -26,6 +31,7 @@ public interface ResumeChunkRepository extends JpaRepository<ResumeChunkEntity, 
             SELECT *
             FROM resume_chunk rc
             WHERE rc.doc_id = :docId
+              AND rc.chunk_type = 'CHILD'
               AND to_tsvector('simple', rc.content) @@ websearch_to_tsquery('simple', :query)
             ORDER BY ts_rank(to_tsvector('simple', rc.content), websearch_to_tsquery('simple', :query)) DESC
             LIMIT :limit
@@ -42,6 +48,7 @@ public interface ResumeChunkRepository extends JpaRepository<ResumeChunkEntity, 
             SELECT *
             FROM resume_chunk rc
             WHERE rc.doc_id = :docId
+              AND rc.chunk_type = 'CHILD'
               AND rc.embedding_dim = :embeddingDim
               AND rc.content_embedding IS NOT NULL
               AND rc.content_embedding <> '[]'

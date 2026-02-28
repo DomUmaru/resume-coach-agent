@@ -28,17 +28,30 @@ public class ResumeChunkingService {
                 if (normalized.isBlank()) {
                     continue;
                 }
+                SectionType section = detectSection(normalized);
+                ResumeChunkEntity parent = new ResumeChunkEntity();
+                parent.setId(IdGenerator.generate("chunk"));
+                parent.setDocId(docId);
+                parent.setUserId(userId);
+                parent.setParentId(null);
+                parent.setSection(section);
+                parent.setChunkType(ChunkType.PARENT);
+                parent.setSourcePage(page.getPageNumber());
+                parent.setContent(normalized);
+                chunks.add(parent);
+
+                // 中文说明：检索命中更细粒度 child，但生成阶段可回填 parent 作为更完整上下文。
                 for (String piece : splitByLength(normalized, MAX_CHARS_PER_CHUNK)) {
-                    ResumeChunkEntity entity = new ResumeChunkEntity();
-                    entity.setId(IdGenerator.generate("chunk"));
-                    entity.setDocId(docId);
-                    entity.setUserId(userId);
-                    entity.setParentId(null);
-                    entity.setSection(detectSection(piece));
-                    entity.setChunkType(ChunkType.CHILD);
-                    entity.setSourcePage(page.getPageNumber());
-                    entity.setContent(piece);
-                    chunks.add(entity);
+                    ResumeChunkEntity child = new ResumeChunkEntity();
+                    child.setId(IdGenerator.generate("chunk"));
+                    child.setDocId(docId);
+                    child.setUserId(userId);
+                    child.setParentId(parent.getId());
+                    child.setSection(section);
+                    child.setChunkType(ChunkType.CHILD);
+                    child.setSourcePage(page.getPageNumber());
+                    child.setContent(piece);
+                    chunks.add(child);
                 }
             }
         }
@@ -79,4 +92,3 @@ public class ResumeChunkingService {
         return SectionType.OTHER;
     }
 }
-

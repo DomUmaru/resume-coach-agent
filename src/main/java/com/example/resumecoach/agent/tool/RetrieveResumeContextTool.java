@@ -2,13 +2,14 @@ package com.example.resumecoach.agent.tool;
 
 import com.example.resumecoach.agent.model.ToolCallResult;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
-import com.example.resumecoach.rag.embedding.EmbeddingService;
 import com.example.resumecoach.rag.context.Citation;
+import com.example.resumecoach.rag.embedding.EmbeddingService;
 import com.example.resumecoach.rag.query.MultiQueryService;
 import com.example.resumecoach.rag.query.QueryRewriteService;
 import com.example.resumecoach.rag.ranking.RerankService;
 import com.example.resumecoach.rag.retrieval.RetrievalTuningProperties;
 import com.example.resumecoach.resume.model.entity.ResumeChunkEntity;
+import com.example.resumecoach.resume.model.enumtype.ChunkType;
 import com.example.resumecoach.resume.repository.ResumeChunkRepository;
 import org.springframework.stereotype.Component;
 
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 
 /**
  * 中文说明：简历上下文检索工具。
- * 策略：按 Rewrite -> MultiQuery -> Hybrid 召回 -> Rerank 的顺序执行，并输出检索追踪信息。
+ * 策略：检索命中细粒度 child chunk，但生成阶段回填 parent chunk，兼顾召回精度和上下文完整度。
  */
 @Component
 public class RetrieveResumeContextTool {
@@ -55,15 +56,16 @@ public class RetrieveResumeContextTool {
     }
 
     public RetrievalExecution runWithTrace(String query, String docId, ChatStreamRequest.Options options) {
-        List<ResumeChunkEntity> allChunks = resumeChunkRepository.findByDocIdOrderBySourcePageAsc(docId);
-        if (allChunks.isEmpty()) {
+        List<ResumeChunkEntity> childChunks =
+                resumeChunkRepository.findByDocIdAndChunkTypeOrderBySourcePageAsc(docId, ChunkType.CHILD);
+        if (childChunks.isEmpty()) {
             Map<String, Object> trace = new LinkedHashMap<>();
             trace.put("rawQuery", query);
             trace.put("rewrittenQuery", query);
             trace.put("multiQueries", List.of());
             trace.put("candidateCount", 0);
             return new RetrievalExecution(
-                    new ToolCallResult("retrieve_resume_context_tool", "未检索到相关简历证据。", List.of()),
+                    new ToolCallResult(ToolNames.RETRIEVE, "未检索到相关简历证据。", List.of()),
                     trace);
         }
 
@@ -92,7 +94,7 @@ public class RetrieveResumeContextTool {
             Set<String> tokens = tokenize(q);
             mergedTokens.addAll(tokens);
 
-            List<ResumeChunkEntity> keywordTop = allChunks.stream()
+            List<ResumeChunkEntity> keywordTop = childChunks.stream()
                     .sorted((a, b) -> Double.compare(score(tokens, b.getContent()), score(tokens, a.getContent())))
                     .limit(dynamicTopK + 2L)
                     .toList();
@@ -101,7 +103,7 @@ public class RetrieveResumeContextTool {
             List<ResumeChunkEntity> ftsTop = resumeChunkRepository.searchByFts(docId, q, dynamicTopK + 2);
             ftsTotal += ftsTop.size();
 
-            List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(allChunks, q, dynamicTopK + 2) : List.of();
+            List<ResumeChunkEntity> vectorTop = enableVector ? searchByVector(childChunks, q, dynamicTopK + 2) : List.of();
             vectorTotal += vectorTop.size();
 
             addRrf(rrfScore, candidates, keywordTop);
@@ -120,8 +122,11 @@ public class RetrieveResumeContextTool {
                 ? rerankService.rerank(fused, mergedTokens, dynamicTopK)
                 : fused.stream().limit(dynamicTopK).toList();
 
+        Map<String, ResumeChunkEntity> parentChunkMap = loadParentChunkMap(topChunks);
         String merged = topChunks.stream()
+                .map(item -> resolveContextChunk(item, parentChunkMap))
                 .map(ResumeChunkEntity::getContent)
+                .distinct()
                 .collect(Collectors.joining("\n"));
 
         List<Citation> citations = topChunks.stream()
@@ -145,8 +150,12 @@ public class RetrieveResumeContextTool {
         trace.put("fusedCount", fused.size());
         trace.put("finalCount", topChunks.size());
         trace.put("finalChunkIds", topChunks.stream().map(ResumeChunkEntity::getId).toList());
+        trace.put("finalParentChunkIds", topChunks.stream()
+                .map(item -> resolveContextChunk(item, parentChunkMap).getId())
+                .distinct()
+                .toList());
 
-        return new RetrievalExecution(new ToolCallResult("retrieve_resume_context_tool", merged, citations), trace);
+        return new RetrievalExecution(new ToolCallResult(ToolNames.RETRIEVE, merged, citations), trace);
     }
 
     private List<ResumeChunkEntity> searchByVector(List<ResumeChunkEntity> chunks, String query, int topN) {
@@ -156,19 +165,44 @@ public class RetrieveResumeContextTool {
         String docId = chunks.isEmpty() ? "" : chunks.get(0).getDocId();
 
         try {
-            List<ResumeChunkEntity> dbTop = resumeChunkRepository.searchByVectorDistance(docId, vectorLiteral, dim, topN * 2);
+            List<ResumeChunkEntity> dbTop =
+                    resumeChunkRepository.searchByVectorDistance(docId, vectorLiteral, dim, topN * 2);
             return dbTop.stream()
                     .filter(chunk -> vectorScore(chunk, queryVector) >= tuningProperties.getVectorMinScore())
                     .limit(topN)
                     .toList();
         } catch (Exception ignored) {
-            // 中文说明：数据库未安装 pgvector 或 SQL 执行异常时，降级为应用内余弦排序。
+            // 中文说明：数据库向量检索不可用时，降级到应用内余弦相似度排序。
             return chunks.stream()
                     .sorted((a, b) -> Double.compare(vectorScore(b, queryVector), vectorScore(a, queryVector)))
                     .filter(chunk -> vectorScore(chunk, queryVector) >= tuningProperties.getVectorMinScore())
                     .limit(topN)
                     .toList();
         }
+    }
+
+    private Map<String, ResumeChunkEntity> loadParentChunkMap(List<ResumeChunkEntity> chunks) {
+        List<String> parentIds = chunks.stream()
+                .map(ResumeChunkEntity::getParentId)
+                .filter(parentId -> parentId != null && !parentId.isBlank())
+                .distinct()
+                .toList();
+        if (parentIds.isEmpty()) {
+            return Map.of();
+        }
+        return resumeChunkRepository.findAllById(parentIds).stream()
+                .collect(Collectors.toMap(ResumeChunkEntity::getId, item -> item, (a, b) -> a));
+    }
+
+    private ResumeChunkEntity resolveContextChunk(ResumeChunkEntity child, Map<String, ResumeChunkEntity> parentChunkMap) {
+        if (child == null) {
+            return null;
+        }
+        if (child.getParentId() == null || child.getParentId().isBlank()) {
+            return child;
+        }
+        ResumeChunkEntity parent = parentChunkMap.get(child.getParentId());
+        return parent == null ? child : parent;
     }
 
     private void addRrf(Map<String, Double> scoreMap,
@@ -200,7 +234,8 @@ public class RetrieveResumeContextTool {
         if (text == null || text.isBlank()) {
             return Set.of();
         }
-        return Arrays.stream(text.toLowerCase(Locale.ROOT).split("[^\\p{IsAlphabetic}\\p{IsDigit}\\u4e00-\\u9fa5]+"))
+        return Arrays.stream(text.toLowerCase(Locale.ROOT)
+                        .split("[^\\p{IsAlphabetic}\\p{IsDigit}\\u4e00-\\u9fa5]+"))
                 .map(String::trim)
                 .filter(token -> !token.isBlank())
                 .collect(Collectors.toCollection(HashSet::new));
@@ -222,4 +257,3 @@ public class RetrieveResumeContextTool {
     public record RetrievalExecution(ToolCallResult result, Map<String, Object> trace) {
     }
 }
-
