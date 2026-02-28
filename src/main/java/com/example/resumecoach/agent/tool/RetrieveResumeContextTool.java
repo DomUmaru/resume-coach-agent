@@ -3,6 +3,7 @@ package com.example.resumecoach.agent.tool;
 import com.example.resumecoach.agent.model.ToolCallResult;
 import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
 import com.example.resumecoach.rag.context.Citation;
+import com.example.resumecoach.rag.context.ContextCompressionService;
 import com.example.resumecoach.rag.embedding.EmbeddingService;
 import com.example.resumecoach.rag.query.MultiQueryService;
 import com.example.resumecoach.rag.query.QueryRewriteService;
@@ -36,6 +37,7 @@ public class RetrieveResumeContextTool {
     private final MultiQueryService multiQueryService;
     private final RerankService rerankService;
     private final MmrService mmrService;
+    private final ContextCompressionService contextCompressionService;
     private final EmbeddingService embeddingService;
     private final RetrievalTuningProperties tuningProperties;
 
@@ -44,6 +46,7 @@ public class RetrieveResumeContextTool {
                                      MultiQueryService multiQueryService,
                                      RerankService rerankService,
                                      MmrService mmrService,
+                                     ContextCompressionService contextCompressionService,
                                      EmbeddingService embeddingService,
                                      RetrievalTuningProperties tuningProperties) {
         this.resumeChunkRepository = resumeChunkRepository;
@@ -51,6 +54,7 @@ public class RetrieveResumeContextTool {
         this.multiQueryService = multiQueryService;
         this.rerankService = rerankService;
         this.mmrService = mmrService;
+        this.contextCompressionService = contextCompressionService;
         this.embeddingService = embeddingService;
         this.tuningProperties = tuningProperties;
     }
@@ -128,11 +132,14 @@ public class RetrieveResumeContextTool {
         List<ResumeChunkEntity> topChunks = mmrService.diversify(rerankedChunks, mergedTokens, dynamicTopK);
 
         Map<String, ResumeChunkEntity> parentChunkMap = loadParentChunkMap(topChunks);
-        String merged = topChunks.stream()
+        List<String> parentContexts = topChunks.stream()
                 .map(item -> resolveContextChunk(item, parentChunkMap))
                 .map(ResumeChunkEntity::getContent)
                 .distinct()
-                .collect(Collectors.joining("\n"));
+                .toList();
+        ContextCompressionService.CompressionResult compression =
+                contextCompressionService.compress(parentContexts, mergedTokens);
+        String merged = compression.content();
 
         List<Citation> citations = topChunks.stream()
                 .map(item -> new Citation(
@@ -161,6 +168,9 @@ public class RetrieveResumeContextTool {
                 .map(item -> resolveContextChunk(item, parentChunkMap).getId())
                 .distinct()
                 .toList());
+        trace.put("contextOriginalChars", compression.originalChars());
+        trace.put("contextCompressedChars", compression.compressedChars());
+        trace.put("contextSelectedSentences", compression.selectedSentenceCount());
 
         return new RetrievalExecution(new ToolCallResult(ToolNames.RETRIEVE, merged, citations), trace);
     }

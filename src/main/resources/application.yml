@@ -32,6 +32,9 @@ app:
   ai:
     enabled: ${APP_AI_ENABLED:false}
   rag:
+    context:
+      max-chars: ${RAG_CONTEXT_MAX_CHARS:1600}
+      fallback-per-segment-chars: ${RAG_CONTEXT_FALLBACK_SEGMENT_CHARS:220}
     embedding:
       fallback-dim: ${RAG_EMBEDDING_FALLBACK_DIM:128}
     retrieval:

@@ -85,6 +85,7 @@
 22. 已新增会话级 Trace 摘要接口（平均耗时、工具分布、Guardrail 拦截率）。
 23. 已完成 Parent-Child Chunk：入库阶段生成 PARENT/CHILD 两层分块，检索阶段命中 child，生成阶段回填 parent 上下文。
 24. 已完成 MMR 去冗余：在 Rerank 之后增加多样性选择，减少最终证据片段重复。
+25. 已完成 Context Compression / Token Budget：对 parent 上下文按 query 命中句进行压缩，并通过字符预算控制最终传给生成模型的上下文规模。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -134,3 +135,4 @@
 15. 2026-02-22：完成 Trace 可视化摘要（/api/trace/summary/{sessionId}），可直接驱动调试看板。
 16. 2026-02-28：完成 Parent-Child Chunk：入库新增 PARENT/CHILD 两层分块，检索阶段仅对 child 召回，生成阶段回填 parent 上下文。
 17. 2026-02-28：完成 MMR 去冗余接入：在 Rerank 之后增加多样性选择，检索追踪日志新增 rerankedCount/mmrCount 字段。
+18. 2026-02-28：完成 Context Compression / Token Budget：新增上下文压缩服务，按 query 相关句抽取并通过字符预算控制最终上下文大小。
