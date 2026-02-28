@@ -15,11 +15,14 @@ import com.example.resumecoach.chat.model.dto.ChatStreamRequest;
 import com.example.resumecoach.rag.context.Citation;
 import com.example.resumecoach.rag.guardrail.CitationVerifierService;
 import com.example.resumecoach.rag.guardrail.NoEvidencePolicyService;
+import com.example.resumecoach.resume.model.enumtype.ChunkType;
+import com.example.resumecoach.resume.model.enumtype.SectionType;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -76,6 +79,7 @@ public class AgentOrchestrator {
         Map<String, Object> guardrailTrace = new LinkedHashMap<>();
 
         long retrievalStart = System.currentTimeMillis();
+        long retrievalEnd;
         if (decision.isShouldRetrieve()) {
             RetrieveResumeContextTool.RetrievalExecution retrievalExec =
                     retrieveResumeContextTool.runWithTrace(request.getMessage(), request.getDocId(), request.getOptions());
@@ -105,7 +109,7 @@ public class AgentOrchestrator {
             retrievalTrace.put("rewrittenQuery", request.getMessage());
             retrievalTrace.put("multiQueries", List.of());
         }
-        long retrievalEnd = System.currentTimeMillis();
+        retrievalEnd = System.currentTimeMillis();
 
         long generationStart = System.currentTimeMillis();
         ToolSelectionDecision toolDecision = llmService.chooseTool(intent, request.getMessage(), decision.isShouldRetrieve());
@@ -125,7 +129,14 @@ public class AgentOrchestrator {
             toolContent = qa.getContent();
             mergedCitations.addAll(qa.getCitations());
         } else if (ToolNames.RETRIEVE.equals(selectedTool)) {
+            RetrieveResumeContextTool.RetrievalExecution retrievalExec = runSelectedRetrieve(request, selectedToolArguments);
+            ToolCallResult retrieval = retrievalExec.result();
+            retrievalTrace.putAll(retrievalExec.trace());
+            retrievalTrace.put("toolArgumentOverride", buildRetrieveOverrideTrace(request, selectedToolArguments));
+            retrievalEvidence = retrieval.getContent();
+            mergedCitations = new ArrayList<>(retrieval.getCitations());
             toolContent = retrievalEvidence;
+            retrievalEnd = System.currentTimeMillis();
         } else if ("REWRITE".equals(intent)) {
             ToolCallResult rewrite = starRewriteTool.run(request.getMessage(), request.getDocId(), retrievalEvidence);
             toolContent = rewrite.getContent();
@@ -190,6 +201,78 @@ public class AgentOrchestrator {
         return latency;
     }
 
+    private RetrieveResumeContextTool.RetrievalExecution runSelectedRetrieve(ChatStreamRequest request,
+                                                                             Map<String, Object> selectedToolArguments) {
+        String query = stringArg(selectedToolArguments, "query", request.getMessage());
+        ChatStreamRequest.Options mergedOptions = mergeRetrieveOptions(request.getOptions(), selectedToolArguments);
+        return retrieveResumeContextTool.runWithTrace(query, request.getDocId(), mergedOptions);
+    }
+
+    private Map<String, Object> buildRetrieveOverrideTrace(ChatStreamRequest request,
+                                                           Map<String, Object> selectedToolArguments) {
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("query", stringArg(selectedToolArguments, "query", request.getMessage()));
+        trace.put("filter", filterToTrace(mergeFilter(request.getOptions(), selectedToolArguments)));
+        return trace;
+    }
+
+    private ChatStreamRequest.Options mergeRetrieveOptions(ChatStreamRequest.Options original,
+                                                           Map<String, Object> selectedToolArguments) {
+        ChatStreamRequest.Options merged = new ChatStreamRequest.Options();
+        if (original != null) {
+            merged.setEnableRewrite(original.getEnableRewrite());
+            merged.setEnableMultiQuery(original.getEnableMultiQuery());
+            merged.setEnableRerank(original.getEnableRerank());
+            merged.setEnableVector(original.getEnableVector());
+        }
+        merged.setFilter(mergeFilter(original, selectedToolArguments));
+        return merged;
+    }
+
+    private ChatStreamRequest.Filter mergeFilter(ChatStreamRequest.Options original,
+                                                 Map<String, Object> selectedToolArguments) {
+        ChatStreamRequest.Filter merged = new ChatStreamRequest.Filter();
+        ChatStreamRequest.Filter base = original == null ? null : original.getFilter();
+        if (base != null) {
+            merged.setSection(base.getSection());
+            merged.setPage(base.getPage());
+            merged.setChunkType(base.getChunkType());
+        }
+        if (selectedToolArguments == null || selectedToolArguments.isEmpty()) {
+            return hasFilterValue(merged) ? merged : null;
+        }
+
+        SectionType section = enumArg(selectedToolArguments.get("section"), SectionType.class);
+        Integer page = integerArg(selectedToolArguments.get("page"));
+        ChunkType chunkType = enumArg(selectedToolArguments.get("chunkType"), ChunkType.class);
+        if (section != null) {
+            merged.setSection(section);
+        }
+        if (page != null) {
+            merged.setPage(page);
+        }
+        if (chunkType != null) {
+            merged.setChunkType(chunkType);
+        }
+        return hasFilterValue(merged) ? merged : null;
+    }
+
+    private Map<String, Object> filterToTrace(ChatStreamRequest.Filter filter) {
+        if (filter == null) {
+            return Map.of();
+        }
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("section", filter.getSection() == null ? "" : filter.getSection().name());
+        trace.put("page", filter.getPage());
+        trace.put("chunkType", filter.getChunkType() == null ? "" : filter.getChunkType().name());
+        return trace;
+    }
+
+    private boolean hasFilterValue(ChatStreamRequest.Filter filter) {
+        return filter != null
+                && (filter.getSection() != null || filter.getPage() != null || filter.getChunkType() != null);
+    }
+
     private String stringArg(Map<String, Object> arguments, String key, String fallback) {
         if (arguments == null) {
             return fallback;
@@ -199,6 +282,28 @@ public class AgentOrchestrator {
             return fallback;
         }
         return String.valueOf(value);
+    }
+
+    private Integer integerArg(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private <E extends Enum<E>> E enumArg(Object value, Class<E> enumType) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(enumType, String.valueOf(value).trim().toUpperCase(Locale.ROOT));
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     /**
