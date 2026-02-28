@@ -83,6 +83,8 @@
 20. 评测对比已支持自动结论（winner + summary），可直接用于答辩展示。
 21. 已新增 RAG 全链路可观测日志（rag_trace_log）与查询接口（按 sessionId / traceId）。
 22. 已新增会话级 Trace 摘要接口（平均耗时、工具分布、Guardrail 拦截率）。
+23. 已完成 Parent-Child Chunk：入库阶段生成 PARENT/CHILD 两层分块，检索阶段命中 child，生成阶段回填 parent 上下文。
+24. 已完成 MMR 去冗余：在 Rerank 之后增加多样性选择，减少最终证据片段重复。
 
 ### 3.6 Spring AI 接入状态
 1. 已引入 Spring AI OpenAI Starter。
@@ -130,3 +132,5 @@
 13. 2026-02-22：完成评测对比自动结论生成（加权评分判优 + 中文摘要）。
 14. 2026-02-22：完成 Observability 初版：记录 query/rewrite/retrieval/tool/guardrail/latency/citations 全链路日志。
 15. 2026-02-22：完成 Trace 可视化摘要（/api/trace/summary/{sessionId}），可直接驱动调试看板。
+16. 2026-02-28：完成 Parent-Child Chunk：入库新增 PARENT/CHILD 两层分块，检索阶段仅对 child 召回，生成阶段回填 parent 上下文。
+17. 2026-02-28：完成 MMR 去冗余接入：在 Rerank 之后增加多样性选择，检索追踪日志新增 rerankedCount/mmrCount 字段。
