@@ -26,8 +26,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 中文说明：Agent 编排器，串联 Skill 决策、Tool 执行与 Guardrail 校验。
- * 策略：输出完整执行轨迹（检索/工具/参数/校验/耗时），用于可观测与回归分析。
+ * 中文说明：Agent 编排器。
+ * 职责：串联意图判断、是否检索、工具选择、工具执行、回答生成和 guardrail 校验。
+ * 输出：不仅返回最终回答，还返回检索轨迹、工具参数、校验结果和耗时信息，供 SSE 与 trace 使用。
  */
 @Component
 public class AgentOrchestrator {
@@ -62,6 +63,16 @@ public class AgentOrchestrator {
         this.llmService = llmService;
     }
 
+    /**
+     * 中文说明：处理单轮聊天请求。
+     * 主流程：
+     * 1. 先做意图识别与是否检索判断
+     * 2. 若需要检索，先取回证据并做前置空证据保护
+     * 3. 让 LLM 选择最合适的 tool
+     * 4. 执行 tool，得到工具结果
+     * 5. 统一组装最终回答
+     * 6. 做后置 citation 校验，不通过时走保守降级回答
+     */
     public AgentResult handle(ChatStreamRequest request) {
         long totalStart = System.currentTimeMillis();
         String intent = intentSkill.decideIntent(request.getMessage(), request.getIntentHint());
@@ -82,6 +93,7 @@ public class AgentOrchestrator {
         long retrievalStart = System.currentTimeMillis();
         long retrievalEnd;
         if (decision.isShouldRetrieve()) {
+            // 先做一次统一检索，得到基础证据；如果连基础证据都为空，直接触发拒答/降级，不继续生成答案。
             RetrieveResumeContextTool.RetrievalExecution retrievalExec =
                     retrieveResumeContextTool.runWithTrace(request.getMessage(), request.getDocId(), request.getOptions());
             ToolCallResult retrieval = retrievalExec.result();
@@ -114,6 +126,7 @@ public class AgentOrchestrator {
         retrievalEnd = System.currentTimeMillis();
 
         long generationStart = System.currentTimeMillis();
+        // tool 选择既可能来自显式意图，也可能由 LLM 根据当前问题和是否检索决定。
         ToolSelectionDecision toolDecision = llmService.chooseTool(intent, request.getMessage(), decision.isShouldRetrieve());
         selectedTool = toolDecision.getToolName();
         selectedToolArguments.putAll(toolDecision.getArguments());
@@ -164,6 +177,7 @@ public class AgentOrchestrator {
             selectedToolReason = "intent-fallback";
         }
 
+        // 所有 tool 先输出自己的原始结果，最后统一交给 AnswerSkill 做最终话术组织。
         String finalAnswer = answerSkill.composeFinalAnswer(intent, toolContent);
         CitationVerifierService.VerificationResult verify =
                 citationVerifierService.verify(finalAnswer, retrievalEvidence, mergedCitations);
@@ -370,7 +384,8 @@ public class AgentOrchestrator {
     }
 
     /**
-     * 中文说明：编排结果对象，供聊天服务进行 SSE 输出和持久化。
+     * 中文说明：编排结果对象。
+     * 用途：同时服务于 SSE 输出、聊天消息持久化和 trace 记录，避免在多个层之间重复组装相同数据。
      */
     public static class AgentResult {
         private final SkillDecision decision;

@@ -27,7 +27,9 @@ import java.util.stream.Collectors;
 
 /**
  * 中文说明：简历上下文检索工具。
- * 策略：检索命中细粒度 child chunk，但生成阶段回填 parent chunk，兼顾召回精度和上下文完整度。
+ * 职责：围绕用户问题做 query rewrite、多查询扩展、关键词/FTS/向量混合召回、融合排序、rerank、
+ * MMR 去冗余、parent 回填和上下文压缩，最终返回可供回答使用的 evidence 与 citation。
+ * 策略：召回层优先命中 child chunk，提高精度；生成层回填 parent chunk，保证上下文完整性。
  */
 @Component
 public class RetrieveResumeContextTool {
@@ -63,6 +65,13 @@ public class RetrieveResumeContextTool {
         return runWithTrace(query, docId, options).result();
     }
 
+    /**
+     * 中文说明：执行一次带 trace 的检索。
+     * @param query 用户问题或工具改写后的 query
+     * @param docId 当前简历文档 ID
+     * @param options 检索选项，包含 rewrite、多查询、rerank、向量检索和过滤条件
+     * @return 包含工具结果与调试轨迹的检索执行结果
+     */
     public RetrievalExecution runWithTrace(String query, String docId, ChatStreamRequest.Options options) {
         ChatStreamRequest.Filter filter = options == null ? null : options.getFilter();
         List<ResumeChunkEntity> childChunks = applyFilter(
@@ -106,6 +115,7 @@ public class RetrieveResumeContextTool {
             Set<String> tokens = tokenize(q);
             mergedTokens.addAll(tokens);
 
+            // 三路召回：关键词、数据库 FTS、向量检索；后面再做融合与重排。
             List<ResumeChunkEntity> keywordTop = childChunks.stream()
                     .sorted((a, b) -> Double.compare(score(tokens, b.getContent()), score(tokens, a.getContent())))
                     .limit(dynamicTopK + 2L)
@@ -137,6 +147,7 @@ public class RetrieveResumeContextTool {
                 : fused.stream().limit(dynamicTopK).toList();
         List<ResumeChunkEntity> topChunks = mmrService.diversify(rerankedChunks, mergedTokens, dynamicTopK);
 
+        // 命中的是 child，但生成时尽量回填 parent，避免把上下文切得太碎。
         Map<String, ResumeChunkEntity> parentChunkMap = loadParentChunkMap(topChunks);
         List<String> parentContexts = topChunks.stream()
                 .map(item -> resolveContextChunk(item, parentChunkMap))
@@ -198,7 +209,7 @@ public class RetrieveResumeContextTool {
                     .limit(topN)
                     .toList();
         } catch (Exception ignored) {
-            // 中文说明：数据库向量检索不可用时，降级到应用内余弦相似度排序。
+            // 中文说明：数据库向量检索不可用时，降级到应用内余弦相似度排序，保证主链路不中断。
             return chunks.stream()
                     .sorted((a, b) -> Double.compare(vectorScore(b, queryVector), vectorScore(a, queryVector)))
                     .filter(chunk -> vectorScore(chunk, queryVector) >= tuningProperties.getVectorMinScore())
@@ -351,7 +362,8 @@ public class RetrieveResumeContextTool {
     }
 
     /**
-     * 中文说明：检索执行结果，包含工具输出与调试追踪信息。
+     * 中文说明：检索执行结果。
+     * result 是给上层 tool 调用方直接消费的内容；trace 用于观测、排障和离线分析。
      */
     public record RetrievalExecution(ToolCallResult result, Map<String, Object> trace) {
     }
