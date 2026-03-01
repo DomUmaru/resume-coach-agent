@@ -23,6 +23,9 @@ public class QueryRewriteService {
         SYNONYM_MAP.put("问答", "QA");
     }
 
+    /**
+     * 中文说明：对原始 query 做轻量改写。
+     */
     public String rewrite(String query) {
         if (query == null || query.isBlank()) {
             return "";
@@ -34,4 +37,3 @@ public class QueryRewriteService {
         return rewritten;
     }
 }
-

@@ -56,6 +56,9 @@ public class OfflineEvalService {
         this.evalStrategySnapshotService = evalStrategySnapshotService;
     }
 
+    /**
+     * 中文说明：针对当前 docId 运行一轮离线评测。
+     */
     public EvalSummaryResponse evaluate(String docId) {
         List<GoldenCase> cases = loadGoldenCases();
         List<ResumeChunkEntity> allChunks = resumeChunkRepository.findByDocId(docId);
@@ -81,6 +84,9 @@ public class OfflineEvalService {
                 .toList();
     }
 
+    /**
+     * 中文说明：比较两次评测报告的指标和配置差异。
+     */
     public EvalCompareResponse compare(String reportIdA, String reportIdB) {
         EvalReportEntity a = evalReportRepository.findById(reportIdA)
                 .orElseThrow(() -> new BizException(ErrorCode.BAD_REQUEST, "reportIdA 不存在"));

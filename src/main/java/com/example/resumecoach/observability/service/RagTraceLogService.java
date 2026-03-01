@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 /**
  * 中文说明：RAG 链路日志服务。
- * 策略：日志写入失败不影响主链路，查询接口优先保证可读性。
+ * 策略：日志写入失败不影响主链路；查询接口优先保证可读性和排障价值。
  */
 @Service
 public class RagTraceLogService {
@@ -31,6 +31,9 @@ public class RagTraceLogService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 中文说明：保存一条完整的 RAG/Agent 执行轨迹。
+     */
     public void save(String traceId,
                      String sessionId,
                      String rawQuery,
@@ -71,6 +74,9 @@ public class RagTraceLogService {
                 .orElse(null);
     }
 
+    /**
+     * 中文说明：聚合同一 session 最近一批 trace，生成摘要统计结果。
+     */
     public TraceSummaryResponse summaryBySession(String sessionId) {
         List<RagTraceLogEntity> logs = ragTraceLogRepository.findTop50BySessionIdOrderByCreatedAtDesc(sessionId);
         TraceSummaryResponse summary = new TraceSummaryResponse();
@@ -251,4 +257,3 @@ public class RagTraceLogService {
         return value == null ? "" : value;
     }
 }
-

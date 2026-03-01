@@ -12,13 +12,13 @@ import java.util.stream.Collectors;
 
 /**
  * 中文说明：Citation 一致性校验服务。
- * 策略：使用答案与证据文本的词项重叠度做轻量校验，快速筛掉证据不足回答。
+ * 策略：使用答案文本与证据文本的词项重叠度做轻量校验，快速筛掉证据不足的回答。
  */
 @Service
 public class CitationVerifierService {
 
     private static final Set<String> STOP_WORDS = Set.of(
-            "的", "了", "和", "与", "在", "是", "对", "及", "并", "为", "请", "你", "我",
+            "的", "了", "和", "中", "在", "是", "对", "可", "并", "与", "请", "你", "我",
             "a", "an", "the", "to", "of", "and", "in", "is", "are", "for"
     );
 
@@ -28,6 +28,13 @@ public class CitationVerifierService {
         this.guardrailProperties = guardrailProperties;
     }
 
+    /**
+     * 中文说明：校验当前答案是否和证据基本一致。
+     * @param answer 最终生成答案
+     * @param evidenceText 检索证据文本
+     * @param citations 当前答案携带的引用
+     * @return 校验结果，包含是否通过、重叠度和失败原因
+     */
     public VerificationResult verify(String answer, String evidenceText, List<Citation> citations) {
         if (!guardrailProperties.isEnabled()) {
             return new VerificationResult(true, 1.0d, "guardrail disabled");
@@ -69,4 +76,3 @@ public class CitationVerifierService {
     public record VerificationResult(boolean pass, double overlap, String reason) {
     }
 }
-

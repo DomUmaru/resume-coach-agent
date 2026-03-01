@@ -14,6 +14,9 @@ import java.util.Set;
 @Service
 public class MultiQueryService {
 
+    /**
+     * 中文说明：根据原问题和改写后问题生成一组查询变体。
+     */
     public List<String> expand(String rawQuery, String rewrittenQuery) {
         Set<String> queries = new LinkedHashSet<>();
         if (rawQuery != null && !rawQuery.isBlank()) {
@@ -29,4 +32,3 @@ public class MultiQueryService {
         return new ArrayList<>(queries);
     }
 }
-

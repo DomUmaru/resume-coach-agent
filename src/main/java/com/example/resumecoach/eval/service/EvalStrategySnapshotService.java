@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * 中文说明：评测策略快照服务。
- * 策略：将关键检索与防幻觉配置序列化并计算版本摘要，便于回归比较。
+ * 策略：将关键检索与 guardrail 配置序列化后计算版本摘要，便于离线评测做回归比较。
  */
 @Service
 public class EvalStrategySnapshotService {
@@ -34,6 +34,9 @@ public class EvalStrategySnapshotService {
         this.aiEnabled = aiEnabled;
     }
 
+    /**
+     * 中文说明：构建当前策略配置快照。
+     */
     public StrategySnapshot buildSnapshot() {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("aiEnabled", aiEnabled);

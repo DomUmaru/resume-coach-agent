@@ -104,10 +104,10 @@ public class ResumeIngestionService {
      */
     private void validateInput(MultipartFile file, String userId) {
         if (file == null || file.isEmpty()) {
-            throw new BizException(ErrorCode.BAD_REQUEST, "涓婁紶鏂囦欢涓嶈兘涓虹┖");
+            throw new BizException(ErrorCode.BAD_REQUEST, "上传文件不能为空");
         }
         if (userId == null || userId.isBlank()) {
-            throw new BizException(ErrorCode.BAD_REQUEST, "userId 涓嶈兘涓虹┖");
+            throw new BizException(ErrorCode.BAD_REQUEST, "userId 不能为空");
         }
         String fileName = file.getOriginalFilename();
         if (fileName == null || !fileName.toLowerCase().endsWith(".pdf")) {

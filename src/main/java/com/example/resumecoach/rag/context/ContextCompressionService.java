@@ -27,6 +27,9 @@ public class ContextCompressionService {
         this.fallbackPerSegmentChars = fallbackPerSegmentChars;
     }
 
+    /**
+     * 中文说明：从若干原始 context segment 中压缩出一段更短、信息密度更高的上下文。
+     */
     public CompressionResult compress(List<String> segments, Set<String> queryTokens) {
         if (segments == null || segments.isEmpty()) {
             return new CompressionResult("", 0, 0, 0);

@@ -25,6 +25,13 @@ public class MmrService {
         this.rerankService = rerankService;
     }
 
+    /**
+     * 中文说明：从候选结果中选出一组相关但不过度重复的 chunk。
+     * @param candidates 候选 chunk
+     * @param queryTokens query 分词
+     * @param topN 目标数量
+     * @return 去冗余后的结果
+     */
     public List<ResumeChunkEntity> diversify(List<ResumeChunkEntity> candidates, Set<String> queryTokens, int topN) {
         if (candidates == null || candidates.isEmpty() || topN <= 0) {
             return List.of();

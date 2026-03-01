@@ -26,6 +26,9 @@ public class ChatHistoryService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 中文说明：查询指定 session 的完整消息历史。
+     */
     public ChatHistoryResponse queryBySessionId(String sessionId) {
         ChatHistoryResponse response = new ChatHistoryResponse();
         response.setSessionId(sessionId);

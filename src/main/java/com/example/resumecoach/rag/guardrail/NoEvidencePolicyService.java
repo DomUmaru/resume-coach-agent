@@ -15,9 +15,14 @@ public class NoEvidencePolicyService {
         this.guardrailProperties = guardrailProperties;
     }
 
+    /**
+     * 中文说明：当完全没有有效证据时返回保守回答。
+     * @param intent 当前意图
+     * @return 面向用户的降级回复
+     */
     public String noEvidenceReply(String intent) {
         if (!guardrailProperties.isNoEvidenceRefuse()) {
-            return "当前证据不足，我先给出一般性建议：请提供更具体的信息后我再给你精确版本。";
+            return "当前证据不足，我先给出一般性建议：请提供更具体的信息后，我再给你精确版本。";
         }
         if ("REWRITE".equals(intent)) {
             return "我暂时没有检索到足够的简历证据，无法直接改写。请补充该段项目经历的背景、行动和结果。";
@@ -28,10 +33,14 @@ public class NoEvidencePolicyService {
         return "当前证据不足，建议先上传或补充简历内容后再继续。";
     }
 
+    /**
+     * 中文说明：当回答与证据重叠度过低时返回保守提醒。
+     * @param overlap 当前答案与证据的重叠度
+     * @return 提示用户重新补充信息的回复
+     */
     public String weakCitationReply(double overlap) {
         return "当前回答与检索证据匹配度较低（overlap="
                 + String.format("%.2f", overlap)
                 + "），为避免无依据输出，请补充更具体问题或简历片段后重试。";
     }
 }
-

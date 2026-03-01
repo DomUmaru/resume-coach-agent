@@ -18,9 +18,9 @@ import java.util.Map;
 
 /**
  * 中文说明：统一封装 Spring AI 文本生成与工具决策能力。
- * 输入：业务提示词、证据上下文、工具注册表。
- * 输出：模型生成文本，或结构化工具决策结果。
- * 策略：优先走 Spring AI ChatClient，异常时自动降级，确保主链路不中断。
+ * 输入：业务提示词、检索证据、工具注册信息。
+ * 输出：模型生成的文本，或结构化的工具选择结果。
+ * 策略：优先走 Spring AI ChatClient；异常或关闭 AI 时自动降级，保证主链路不断。
  */
 @Service
 public class LlmService {
@@ -41,6 +41,13 @@ public class LlmService {
         this.chatClient = (enabled && builder != null) ? builder.build() : null;
     }
 
+    /**
+     * 中文说明：生成 STAR 改写结果。
+     * @param rawText 用户原始文本
+     * @param evidence 检索到的证据
+     * @param fallback 模型不可用时的本地兜底文本
+     * @return 改写结果
+     */
     public String generateStarRewrite(String rawText, String evidence, String fallback) {
         if (!isAvailable()) {
             return fallback;
@@ -50,7 +57,6 @@ public class LlmService {
                 1) 输出包含 S/T/A/R 四段；
                 2) 内容简洁、量化优先；
                 3) 如果给定证据与原文冲突，以证据为准。
-
                 用户原文：
                 %s
 
@@ -60,6 +66,13 @@ public class LlmService {
         return callOrFallback(prompt, fallback);
     }
 
+    /**
+     * 中文说明：基于证据生成问答答案。
+     * @param question 用户问题
+     * @param evidence 检索证据
+     * @param fallback 模型不可用时的兜底答案
+     * @return 问答结果
+     */
     public String generateQaAnswer(String question, String evidence, String fallback) {
         if (!isAvailable()) {
             return fallback;
@@ -69,7 +82,6 @@ public class LlmService {
                 1) 先给直接答案，再给 2-3 条要点；
                 2) 不要编造证据之外的信息；
                 3) 如果证据不足，明确说明并给出追问建议。
-
                 用户问题：
                 %s
 
@@ -83,6 +95,13 @@ public class LlmService {
         return enabled && chatClient != null;
     }
 
+    /**
+     * 中文说明：让模型决定当前该调用哪个工具。
+     * @param intent 已识别意图
+     * @param userMessage 用户原始输入
+     * @param shouldRetrieve 当前轮是否适合检索
+     * @return 结构化工具选择结果；若模型不可用或解析失败，则回退为规则选择
+     */
     public ToolSelectionDecision chooseTool(String intent, String userMessage, boolean shouldRetrieve) {
         String fallbackTool = ruleBasedTool(intent);
         ToolSelectionDecision fallback = new ToolSelectionDecision(
@@ -97,7 +116,6 @@ public class LlmService {
 
         String prompt = """
                 你是一个工具路由器。请从候选工具中选择最合适的工具，并严格输出 JSON，不要输出任何额外文字。
-
                 输出 schema:
                 {
                   "toolName": "retrieve_resume_context_tool|star_rewrite_tool|resume_qa_tool|none",
@@ -151,6 +169,10 @@ public class LlmService {
         return ToolNames.NONE;
     }
 
+    /**
+     * 中文说明：解析模型返回的工具选择 JSON，并做参数归一化与校验。
+     * 若模型输出不可解析，则自动回退到 fallback 结果。
+     */
     private ToolSelectionDecision parseAndValidateDecision(String raw, ToolSelectionDecision fallback) {
         if (raw == null || raw.isBlank()) {
             return fallback;

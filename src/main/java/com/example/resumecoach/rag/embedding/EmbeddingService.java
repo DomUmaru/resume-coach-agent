@@ -9,7 +9,7 @@ import java.util.Locale;
 
 /**
  * 中文说明：统一向量化服务。
- * 策略：优先使用 Spring AI EmbeddingModel，未开启或不可用时使用本地哈希向量降级。
+ * 策略：优先使用 Spring AI EmbeddingModel；未开启或不可用时使用本地哈希向量降级。
  */
 @Service
 public class EmbeddingService {
@@ -26,6 +26,10 @@ public class EmbeddingService {
         this.fallbackDim = fallbackDim;
     }
 
+    /**
+     * 中文说明：把文本转换成向量。
+     * 策略：模型可用时优先调用模型；失败时自动退回本地哈希向量。
+     */
     public float[] embed(String text) {
         String safeText = text == null ? "" : text.trim();
         if (aiEnabled && embeddingModel != null) {

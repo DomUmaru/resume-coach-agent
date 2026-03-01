@@ -31,6 +31,9 @@ public class ChatPersistenceService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 中文说明：确保会话存在；如果不存在则创建一条新的会话记录。
+     */
     @Transactional
     public void ensureSession(String sessionId, String userId, String docId, String title) {
         if (chatSessionRepository.existsById(sessionId)) {
@@ -44,6 +47,9 @@ public class ChatPersistenceService {
         chatSessionRepository.save(session);
     }
 
+    /**
+     * 中文说明：保存一条用户消息。
+     */
     @Transactional
     public void saveUserMessage(String sessionId, String content) {
         ChatMessageEntity entity = new ChatMessageEntity();
@@ -54,6 +60,9 @@ public class ChatPersistenceService {
         chatMessageRepository.save(entity);
     }
 
+    /**
+     * 中文说明：保存一条 assistant 消息，同时记录 citation 和工具轨迹。
+     */
     @Transactional
     public void saveAssistantMessage(String sessionId, String content, List<Citation> citations, String toolTraceJson) {
         ChatMessageEntity entity = new ChatMessageEntity();
@@ -75,4 +84,3 @@ public class ChatPersistenceService {
         }
     }
 }
-

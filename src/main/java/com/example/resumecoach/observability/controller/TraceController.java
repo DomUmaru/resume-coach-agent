@@ -28,16 +28,25 @@ public class TraceController {
         this.ragTraceLogService = ragTraceLogService;
     }
 
+    /**
+     * 中文说明：查询指定 session 最近的 trace 列表。
+     */
     @GetMapping("/{sessionId}")
     public ApiResponse<List<RagTraceLogItem>> latest(@PathVariable("sessionId") @NotBlank String sessionId) {
         return ApiResponse.ok(ragTraceLogService.latestBySession(sessionId), TraceContext.getTraceId());
     }
 
+    /**
+     * 中文说明：根据 traceId 查询一条完整 trace 明细。
+     */
     @GetMapping("/detail/{traceId}")
     public ApiResponse<RagTraceLogItem> detail(@PathVariable("traceId") @NotBlank String traceId) {
         return ApiResponse.ok(ragTraceLogService.detailByTraceId(traceId), TraceContext.getTraceId());
     }
 
+    /**
+     * 中文说明：聚合指定 session 最近一批 trace，返回摘要统计结果。
+     */
     @GetMapping("/summary/{sessionId}")
     public ApiResponse<TraceSummaryResponse> summary(@PathVariable("sessionId") @NotBlank String sessionId) {
         return ApiResponse.ok(ragTraceLogService.summaryBySession(sessionId), TraceContext.getTraceId());

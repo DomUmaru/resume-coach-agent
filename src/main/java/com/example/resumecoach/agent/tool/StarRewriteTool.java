@@ -10,7 +10,8 @@ import java.util.List;
 
 /**
  * 中文说明：STAR 改写工具。
- * 策略：优先调用 Spring AI 生成改写结果，模型不可用时降级为本地模板。
+ * 职责：把用户输入或简历片段改写成更适合面试或简历表达的 STAR 结构。
+ * 策略：优先调用 LLM 生成改写结果；模型不可用时使用本地模板 fallback。
  */
 @Component
 public class StarRewriteTool {
@@ -21,6 +22,14 @@ public class StarRewriteTool {
         this.llmService = llmService;
     }
 
+    /**
+     * 中文说明：执行一次 STAR 改写。
+     * @param rawText 用户原始文本或待改写片段
+     * @param docId 当前简历文档 ID
+     * @param retrievedEvidence 已检索到的简历证据
+     * @param supportingCitations 支撑本次改写的引用列表
+     * @return 工具输出结果，包含改写后的内容和 citation
+     */
     public ToolCallResult run(String rawText,
                               String docId,
                               String retrievedEvidence,
@@ -33,6 +42,7 @@ public class StarRewriteTool {
         String content = llmService.generateStarRewrite(rawText, retrievedEvidence, fallback);
         List<Citation> citations = supportingCitations == null ? new ArrayList<>() : new ArrayList<>(supportingCitations);
         if (citations.isEmpty()) {
+            // 当上层没有提供引用时，补一个最小占位，保持工具结果结构稳定。
             citations.add(new Citation("chunk_102", docId, 3, "PROJECT", 0.89d));
         }
         return new ToolCallResult("star_rewrite_tool", content, citations);
